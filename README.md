@@ -1,9 +1,26 @@
 # MixoDJ
 
-Autonomous digital DJ web app.
+Database-free autonomous DJ prototype.
 
-Current build includes selectable crowd states, autonomous demo track scoring, dynamic queue, admin skip, and an authorized-source ingestion UI.
+## Current architecture
 
-Run locally with npm install, then npm run dev.
+- Next.js App Router
+- Server-side in-memory DJ state
+- One consolidated /api/dj endpoint
+- YouTube IFrame playback
+- Queue controls
+- 24-hour in-memory repeat history
+- No database
 
-Production ingestion should use an authorized/licensed audio worker and private S3-compatible object storage. Do not expose storage credentials or process audio without the required rights.
+## Controls
+
+- Start/stop Auto DJ
+- Add a YouTube URL to the queue
+- Play Now
+- Skip
+- Clear queue
+- Automatic next-track handling when YouTube reports playback ended
+
+## Limitation
+
+In-memory state can be lost when a serverless instance restarts or traffic moves between instances. Durable realtime state can be added later without introducing a traditional database.
