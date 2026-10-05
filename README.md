@@ -1,26 +1,17 @@
 # MixoDJ
+Database-free autonomous DJ with a persistent Cloudflare R2 MP3 library.
 
-Database-free autonomous DJ prototype.
+Architecture: permitted source URL -> MP3 ingestion -> R2 -> Library -> Auto DJ -> HTML5 audio.
 
-## Current architecture
+YouTube is an ingestion source only; it is never the playback engine.
 
-- Next.js App Router
-- Server-side in-memory DJ state
-- One consolidated /api/dj endpoint
-- YouTube IFrame playback
-- Queue controls
-- 24-hour in-memory repeat history
-- No database
+Environment:
+- R2_ACCOUNT_ID
+- R2_BUCKET_NAME
+- R2_ACCESS_KEY_ID
+- R2_SECRET_ACCESS_KEY
+- R2_PUBLIC_URL (optional, recommended for production)
+- COBALT_API_URL (self-hosted Cobalt instance)
+- COBALT_API_KEY (optional)
 
-## Controls
-
-- Start/stop Auto DJ
-- Add a YouTube URL to the queue
-- Play Now
-- Skip
-- Clear queue
-- Automatic next-track handling when YouTube reports playback ended
-
-## Limitation
-
-In-memory state can be lost when a serverless instance restarts or traffic moves between instances. Durable realtime state can be added later without introducing a traditional database.
+The library manifest is stored as library/manifest.json in R2. Stored audio is under music/.

@@ -1,149 +1,23 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
-import DJPlayer from "./dj-player";
-
-type Track = { id: string; title: string; artist?: string; youtubeId: string; addedAt: number };
-type DJState = { running: boolean; current: Track | null; queue: Track[]; history: Record<string, number>; updatedAt: number };
-
-const DEMO = [
-  { title: "Neon Nights", energy: 42, bpm: 118, key: "8A", genre: "Groove" },
-  { title: "City Pulse", energy: 61, bpm: 122, key: "8B", genre: "Dance" },
-  { title: "After Hours", energy: 78, bpm: 124, key: "9A", genre: "House" },
-  { title: "No Sleep", energy: 91, bpm: 128, key: "9B", genre: "EDM" },
-];
-
-function getYouTubeId(value: string) {
-  try {
-    const u = new URL(value);
-    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("/")[0];
-    if (u.hostname.endsWith("youtube.com")) return u.searchParams.get("v");
-  } catch {}
-  return null;
-}
-
-async function command(action: string, extra: Record<string, unknown> = {}) {
-  const res = await fetch("/api/dj", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...extra }),
-  });
-  return res.json();
-}
-
-export default function Home() {
-  const [dj, setDj] = useState<DJState>({ running: false, current: null, queue: [], history: {}, updatedAt: 0 });
-  const [url, setUrl] = useState("");
-  const [notice, setNotice] = useState("Ready for Auto DJ.");
-  const [state, setState] = useState("starting");
-
-  async function refresh() {
-    try {
-      const res = await fetch("/api/dj", { cache: "no-store" });
-      setDj(await res.json());
-    } catch { setNotice("DJ server is temporarily unavailable."); }
-  }
-
-  useEffect(() => {
-    refresh();
-    const timer = window.setInterval(refresh, 2000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  async function run(action: string, extra: Record<string, unknown> = {}, message?: string) {
-    const next = await command(action, extra);
-    setDj(next);
-    if (message) setNotice(message);
-  }
-
-  async function addUrl(playNow = false) {
-    const id = getYouTubeId(url.trim());
-    if (!id) { setNotice("Enter a valid YouTube URL."); return; }
-    await run(playNow ? "playNow" : "add", {
-      youtubeId: id,
-      title: playNow ? "Now Playing" : "Queued YouTube track",
-    }, playNow ? "Playing the selected YouTube track." : "Track added to the DJ queue.");
-    setUrl("");
-  }
-
-  const current = dj.current;
-  const next = dj.queue[0];
-  const target = useMemo(() => ({
-    starting: [20, 40], building: [40, 65], intense: [70, 90],
-    party: [80, 100], chill: [15, 45], peak: [85, 100], closing: [25, 55]
-  } as Record<string, number[]>)[state], [state]);
-
-  return <main>
-    <header className="topbar">
-      <div className="brand"><span className="brandmark">MX</span><div><b>MIXODJ</b><small>AUTONOMOUS DJ</small></div></div>
-      <div className={dj.running ? "live liveOn" : "live"}><i/> {dj.running ? "AUTO DJ ACTIVE" : "STOPPED"}</div>
-    </header>
-
-    <section className="hero">
-      <div>
-        <p className="eyebrow">REAL PLAYBACK · SERVER QUEUE · NO DATABASE</p>
-        <h1>Let the room<br/><em>move itself.</em></h1>
-        <p className="sub">MixoDJ now has a real server-side queue. Connected clients poll the same DJ state, while the player automatically advances through the queue.</p>
-        <button className={dj.running ? "primary running" : "primary"} onClick={() => run(dj.running ? "stop" : "start", {}, dj.running ? "Auto DJ stopped." : "Auto DJ started.")}>
-          {dj.running ? "■ STOP AUTO DJ" : "▶ START AUTO DJ"}
-        </button>
-      </div>
-
-      <div className="deck">
-        <div className="decktop"><span>NOW PLAYING</span><span>{current ? "LIVE" : "NO TRACK"}</span></div>
-        <DJPlayer youtubeId={current?.youtubeId ?? null} running={dj.running && !!current} onEnded={() => run("syncEnded", {}, "Track finished — advancing the queue.")}/>
-        <h2>{current?.title ?? "Nothing playing"}</h2>
-        <p>{current?.artist ?? "Add a YouTube track to begin"}</p>
-        <div className="meters">
-          <div><label>QUEUE</label><b>{dj.queue.length}</b></div>
-          <div><label>CROWD</label><b>{state.toUpperCase()}</b></div>
-          <div><label>NEXT</label><b>{next?.title ?? "AUTO SELECT"}</b></div>
-        </div>
-      </div>
-    </section>
-
-    <section className="states">
-      <div className="sectionhead"><div><span className="eyebrow">TARGET STATE</span><h3>Tell the DJ what the room feels like</h3></div><span className="muted">Target energy: {target[0]}–{target[1]}</span></div>
-      <div className="stategrid">
-        {Object.keys({starting:1,building:1,intense:1,party:1,chill:1,peak:1,closing:1}).map(k =>
-          <button key={k} className={state === k ? "state selected" : "state"} onClick={() => { setState(k); setNotice("Target changed to " + k + "."); }}>
-            <span>✦</span><strong>{k.replace(/^./, x => x.toUpperCase())}</strong><small>{({starting:"20–40",building:"40–65",intense:"70–90",party:"80–100",chill:"15–45",peak:"85–100",closing:"25–55"} as any)[k]} energy</small><p>Steer upcoming selections toward this crowd energy.</p>
-          </button>
-        )}
-      </div>
-    </section>
-
-    <section className="grid">
-      <div className="panel">
-        <div className="sectionhead"><div><span className="eyebrow">UP NEXT</span><h3>Live queue</h3></div>
-          <button className="ghost" onClick={() => run("next", {}, "Skipped to the next queued track.")}>SKIP →</button>
-        </div>
-        {dj.queue.length ? dj.queue.slice(0, 8).map((t, i) =>
-          <div className="track" key={t.id}><span className="num">{String(i + 1).padStart(2, "0")}</span><div><b>{t.title}</b><small>{t.artist ?? "YouTube"}</small></div><span className="tag">QUEUED</span></div>
-        ) : <p className="notice">Queue is empty. Add a YouTube URL below.</p>}
-        <button className="ghost" onClick={() => run("clear", {}, "Queue cleared.")}>CLEAR QUEUE</button>
-      </div>
-
-      <div className="panel">
-        <div className="sectionhead"><div><span className="eyebrow">MUSIC INGESTION</span><h3>Add real music</h3></div></div>
-        <div className="import"><input value={url} onChange={e => setUrl(e.target.value)} placeholder="Paste YouTube URL…"/><button onClick={() => addUrl(false)}>ADD</button></div>
-        <div className="import"><button onClick={() => addUrl(true)}>PLAY NOW</button></div>
-        <p className="hint">The URL is converted to a YouTube video ID and controlled by the server-side DJ queue. No database is used.</p>
-        <div className="pipeline"><span>URL</span><i>→</i><span>QUEUE</span><i>→</i><span>PLAY</span><i>→</i><span>NEXT</span></div>
-      </div>
-    </section>
-
-    <section className="logic">
-      <span className="eyebrow">DJ BRAIN</span><h3>24-hour repeat protection is ready for the server queue.</h3>
-      <div className="logicgrid">
-        <div><b>01</b><strong>Server queue</strong><p>One consolidated API controls playback state and queue actions.</p></div>
-        <div><b>02</b><strong>Automatic advance</strong><p>When YouTube reports END, the server moves to the next track.</p></div>
-        <div><b>03</b><strong>24h memory</strong><p>Played video IDs are held in server memory and rejected from repeat selection for 24 hours.</p></div>
-        <div><b>04</b><strong>No database</strong><p>Everything runs with lightweight in-memory state for this first working version.</p></div>
-      </div>
-    </section>
-
-    <footer><span>MIXODJ / AUTONOMOUS MUSIC SYSTEM</span><span>DATABASE-FREE · 24H REPEAT PROTECTION · CONTINUOUS PLAYBACK</span></footer>
-    <p className="notice" style={{textAlign:"center"}}>{notice}</p>
-  </main>;
-}
+import{useEffect,useMemo,useState}from"react";import AudioPlayer from"./audio-player";
+type Track={id:string;title:string;artist?:string;key:string;sourceUrl?:string;audioUrl:string;addedAt:number};type DJ={running:boolean;current:{id:string;title:string;artist?:string}|null;queue:{id:string;title:string;artist?:string}[];history:Record<string,number>;updatedAt:number};
+async function djApi(action:string,extra:any={}){const r=await fetch("/api/dj",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...extra})});return r.json()}
+export default function Home(){const[library,setLibrary]=useState<Track[]>([]),[dj,setDj]=useState<DJ>({running:false,current:null,queue:[],history:{},updatedAt:0}),[url,setUrl]=useState(""),[title,setTitle]=useState(""),[q,setQ]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState("Library ready.");
+async function load(){const[r1,r2]=await Promise.all([fetch("/api/library",{cache:"no-store"}),fetch("/api/dj",{cache:"no-store"})]);const a=await r1.json(),b=await r2.json();if(r1.ok)setLibrary(a.tracks||[]);if(r2.ok)setDj(b)}
+useEffect(()=>{load();const i=setInterval(load,3000);return()=>clearInterval(i)},[]);
+const catalog=useMemo(()=>library.map(t=>({id:t.id,title:t.title,artist:t.artist})),[library]);const current=library.find(t=>t.id===dj.current?.id)||null;const shown=library.filter(t=>`${t.title} ${t.artist||""}`.toLowerCase().includes(q.toLowerCase()));
+async function act(action:string,track?:Track){const n=await djApi(action,track?{track,catalog}:{catalog});setDj(n)}
+async function ingest(){if(!url.trim())return;setBusy(true);setNotice("Downloading MP3 and saving it to R2...");const r=await fetch("/api/library",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"ingest",url:url.trim(),title:title.trim()||undefined})}),d=await r.json();if(r.ok){setLibrary(d.tracks);setUrl("");setTitle("");setNotice("Saved to Library.");}else setNotice(d.error||"Download failed.");setBusy(false)}
+async function upload(f:File){setBusy(true);setNotice("Uploading MP3 to R2...");const r=await fetch("/api/library",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"presign",filename:f.name})}),p=await r.json();if(!r.ok){setNotice(p.error);setBusy(false);return}const u=await fetch(p.uploadUrl,{method:"PUT",headers:{"Content-Type":"audio/mpeg"},body:f});if(!u.ok){setNotice("R2 upload failed.");setBusy(false);return}const name=f.name.replace(/\.mp3$/i,"").replace(/[-_]+/g," ");const z=await fetch("/api/library",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"finalize",track:{id:p.id,key:p.key,title:name,addedAt:Date.now()}})}),d=await z.json();setLibrary(d.tracks||[]);setNotice("MP3 added to Library.");setBusy(false)}
+async function remove(id:string){if(!confirm("Delete this track from the library?"))return;const r=await fetch("/api/library",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"delete",id})}),d=await r.json();if(r.ok)setLibrary(d.tracks||[])}
+return <main><header className="topbar"><div className="brand"><span className="brandmark">MX</span><div><b>MIXODJ</b><small>AUTONOMOUS DJ · R2 MUSIC LIBRARY</small></div></div><div className={dj.running?"live liveOn":"live"}><i/> {dj.running?"AUTO DJ ACTIVE":"STOPPED"}</div></header>
+<section className="hero"><div><p className="eyebrow">YOUTUBE INGESTION · MP3 STORAGE · LOCAL PLAYBACK</p><h1>Let the room<br/><em>move itself.</em></h1><p className="sub">YouTube is only the source. MixoDJ downloads permitted audio into your R2 Library, then plays the stored MP3 files. No YouTube player.</p><button className={dj.running?"primary running":"primary"} onClick={async()=>{const n=await djApi(dj.running?"stop":"start",{catalog});setDj(n)}}>{dj.running?"■ STOP AUTO DJ":"▶ START AUTO DJ"}</button></div>
+<div className="deck"><div className="decktop"><span>NOW PLAYING</span><span>{current?"LOCAL MP3":"NO TRACK"}</span></div><div className="wave">{Array.from({length:18},(_,i)=><span key={i}/>)}</div><h2>{current?.title||"Nothing playing"}</h2><p>{current?.artist||"Start Auto DJ or choose a library track"}</p><AudioPlayer src={current?.audioUrl||null} playing={dj.running&&!!current} onEnded={()=>act("syncEnded")}/><div className="meters"><div><label>LIBRARY</label><b>{library.length}</b></div><div><label>QUEUE</label><b>{dj.queue.length}</b></div><div><label>NEXT</label><b>{dj.queue[0]?.title||"AUTO SELECT"}</b></div></div></div></section>
+<section className="states"><div className="sectionhead"><div><span className="eyebrow">MUSIC LIBRARY</span><h3>Saved music</h3></div><span className="muted">{library.length} tracks</span></div>
+<div className="import"><input value={url} onChange={e=>setUrl(e.target.value)} placeholder="Paste YouTube URL you have permission to download…"/><button disabled={busy} onClick={ingest}>{busy?"WORKING…":"DOWNLOAD MP3"}</button></div>
+<div className="import"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Optional title / artist"/><label className="upload-button">UPLOAD MP3<input hidden type="file" accept=".mp3,audio/mpeg" onChange={e=>{const f=e.target.files?.[0];if(f)upload(f)}}/></label></div>
+<div className="library-toolbar"><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search saved music…"/><span>{shown.length} shown</span></div>
+<div className="library">{shown.map((t,i)=><div className="track" key={t.id}><span className="num">{String(i+1).padStart(2,"0")}</span><div><b>{t.title}</b><small>{t.artist||"MP3"} · saved {new Date(t.addedAt).toLocaleDateString()}</small></div><button className="small-action" onClick={()=>act("playNow",t)}>▶ PLAY</button><button className="small-action" onClick={()=>act("add",t)}>+ QUEUE</button><button className="delete-action" onClick={()=>remove(t.id)}>×</button></div>)}{!shown.length&&<p className="notice">No saved music yet.</p>}</div></section>
+<section className="grid"><div className="panel"><div className="sectionhead"><div><span className="eyebrow">UP NEXT</span><h3>DJ queue</h3></div><button className="ghost" onClick={()=>act("next")}>SKIP →</button></div>{dj.queue.map((t,i)=><div className="track" key={t.id}><span className="num">{String(i+1).padStart(2,"0")}</span><div><b>{t.title}</b><small>{t.artist||"Library"}</small></div><span className="tag">QUEUED</span></div>)}{!dj.queue.length&&<p className="notice">Auto DJ selects from your saved Library.</p>}</div>
+<div className="panel"><span className="eyebrow">AUDIO PIPELINE</span><h3>YouTube → MP3 → R2 → DJ</h3><p className="hint">The YouTube URL is never used for playback. The DJ reads the saved MP3 from R2 through the normal HTML5 audio engine.</p><div className="pipeline"><span>SOURCE</span><i>→</i><span>MP3</span><i>→</i><span>R2</span><i>→</i><span>PLAY</span></div><p className="notice">{notice}</p></div></section>
+<footer><span>MIXODJ / AUTONOMOUS MUSIC SYSTEM</span><span>DATABASE-FREE · R2 LIBRARY · 24H REPEAT PROTECTION</span></footer></main>}
