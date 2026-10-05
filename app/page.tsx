@@ -1,0 +1,36 @@
+"use client";
+import {useMemo,useState} from "react";
+type StateKey="starting"|"building"|"intense"|"party"|"chill"|"peak"|"closing";
+type Track={id:number;title:string;artist:string;bpm:number;energy:number;key:string;genre:string;duration:string};
+const STATES:Record<StateKey,{label:string;icon:string;energy:string;range:[number,number];description:string}>={
+starting:{label:"Starting Crowd",icon:"◌",energy:"20–40",range:[20,40],description:"Warm, familiar and gradual."},
+building:{label:"Building Crowd",icon:"↗",energy:"40–65",range:[40,65],description:"Grooves and momentum."},
+intense:{label:"Intense Crowd",icon:"⚡",energy:"70–90",range:[70,90],description:"High-energy dance floor."},
+party:{label:"Drunk / Party",icon:"♨",energy:"80–100",range:[80,100],description:"Crowd-pleasers and singalongs."},
+chill:{label:"Chill / Lounge",icon:"☾",energy:"15–45",range:[15,45],description:"Smooth, low-pressure flow."},
+peak:{label:"Peak Time",icon:"✦",energy:"85–100",range:[85,100],description:"Maximum-impact selection."},
+closing:{label:"Closing",icon:"⌁",energy:"25–55",range:[25,55],description:"Recognizable and winding down."}};
+const DEMO:Track[]=[
+{id:1,title:"Neon Nights",artist:"Mixo Library",bpm:118,energy:42,key:"8A",genre:"Groove",duration:"4:12"},
+{id:2,title:"City Pulse",artist:"Mixo Library",bpm:122,energy:61,key:"8B",genre:"Dance",duration:"3:48"},
+{id:3,title:"After Hours",artist:"Mixo Library",bpm:124,energy:78,key:"9A",genre:"House",duration:"4:05"},
+{id:4,title:"No Sleep",artist:"Mixo Library",bpm:128,energy:91,key:"9B",genre:"EDM",duration:"3:56"},
+{id:5,title:"Golden Hour",artist:"Mixo Library",bpm:105,energy:31,key:"7A",genre:"Lounge",duration:"4:22"},
+{id:6,title:"Downtown Heat",artist:"Mixo Library",bpm:126,energy:84,key:"8A",genre:"Afro",duration:"3:42"}];
+function score(t:Track,target:number,current?:Track){return Math.max(0,30-Math.abs(t.energy-target))+(current?Math.max(0,20-Math.abs(t.bpm-current.bpm)*2):10)+(current?(t.key===current.key?15:8):8)+t.energy/10}
+export default function Home(){
+const[state,setState]=useState<StateKey>("starting"),[running,setRunning]=useState(false),[tracks]=useState(DEMO),[current,setCurrent]=useState<Track>(DEMO[0]),[history,setHistory]=useState<number[]>([]),[url,setUrl]=useState(""),[notice,setNotice]=useState("Ready for Auto DJ.");
+const target=STATES[state];
+const next=useMemo(()=>{const c=tracks.filter(t=>t.id!==current.id&&!history.includes(t.id));const p=c.length?c:tracks.filter(t=>t.id!==current.id);return[...p].sort((a,b)=>score(b,target.range[1],current)-score(a,target.range[1],current))[0]??current},[tracks,current,history,target]);
+function skip(){if(next.id===current.id)return;setHistory(h=>[...h.slice(-19),current.id]);setCurrent(next);setNotice("Transition planned: phrase-aware beatmatch + EQ bass swap.")}
+function importUrl(){if(!/^https?:\\/\\/(www\\.)?youtube\\.com\\/|^https?:\\/\\/youtu\\.be\\//i.test(url)){setNotice("Enter a valid YouTube URL.");return}setUrl("");setNotice("Source accepted. Connect an authorized/licensed ingestion worker and object storage to persist this track.")}
+return <main>
+<header className="topbar"><div className="brand"><span className="brandmark">MX</span><div><b>MIXODJ</b><small>AUTONOMOUS DJ</small></div></div><div className={running?"live liveOn":"live"}><i/> {running?"AUTO DJ ACTIVE":"OFFLINE"}</div></header>
+<section className="hero"><div><p className="eyebrow">THE CROWD CHOOSES THE DIRECTION. THE DJ DOES THE REST.</p><h1>Let the room<br/><em>move itself.</em></h1><p className="sub">Choose a crowd state. MixoDJ handles track selection, energy, BPM, harmonic compatibility and transitions without song-by-song input.</p><button className={running?"primary running":"primary"} onClick={()=>running?setRunning(false):setRunning(true)}>{running?"■ STOP AUTO DJ":"▶ START AUTO DJ"}</button></div>
+<div className="deck"><div className="decktop"><span>NOW PLAYING</span><span>{current.bpm} BPM · {current.key}</span></div><div className="wave">{Array.from({length:64},(_,i)=><span key={i} style={{height:(16+Math.abs(Math.sin(i*.72))*48+(i%7)*3)+"%"}}/>)}</div><h2>{current.title}</h2><p>{current.artist} · {current.genre}</p><div className="meters"><div><label>ENERGY</label><b>{current.energy}</b></div><div><label>CROWD</label><b>{target.label}</b></div><div><label>NEXT</label><b>{next.title}</b></div></div></div></section>
+<section className="states"><div className="sectionhead"><div><span className="eyebrow">TARGET STATE</span><h3>Tell the DJ what the room feels like</h3></div><span className="muted">You select the state. The algorithm selects the music.</span></div><div className="stategrid">{(Object.keys(STATES) as StateKey[]).map(k=><button key={k} className={state===k?"state selected":"state"} onClick={()=>{setState(k);setNotice("Target changed to "+STATES[k].label+". DJ will steer upcoming transitions toward "+STATES[k].energy+" energy.")}}><span>{STATES[k].icon}</span><strong>{STATES[k].label}</strong><small>{STATES[k].energy} energy</small><p>{STATES[k].description}</p></button>)}</div></section>
+<section className="grid"><div className="panel"><div className="sectionhead"><div><span className="eyebrow">UP NEXT</span><h3>Dynamic queue</h3></div><button className="ghost" onClick={skip}>SKIP →</button></div><div className="track"><span className="num">01</span><div><b>{next.title}</b><small>{next.artist} · {next.genre}</small></div><strong>{next.bpm}</strong><span className="tag">{next.key}</span></div><div className="track faded"><span className="num">02</span><div><b>Predicted by DJ brain</b><small>Recalculated as the current track progresses</small></div><span className="tag">AUTO</span></div><p className="notice">{notice}</p></div>
+<div className="panel"><div className="sectionhead"><div><span className="eyebrow">MUSIC INGESTION</span><h3>Add authorized audio source</h3></div></div><div className="import"><input value={url} onChange={e=>setUrl(e.target.value)} placeholder="Paste YouTube URL…"/><button onClick={importUrl}>ADD</button></div><p className="hint">The production ingestion worker should process only audio you are authorized to store and play, then write it to private object storage and run analysis.</p><div className="pipeline"><span>URL</span><i>→</i><span>INGEST</span><i>→</i><span>ANALYZE</span><i>→</i><span>STORE</span><i>→</i><span>DJ LIBRARY</span></div></div></section>
+<section className="logic"><span className="eyebrow">DJ BRAIN</span><h3>Every next song is a decision, not a playlist slot.</h3><div className="logicgrid"><div><b>01</b><strong>Energy curve</strong><p>Moves toward the selected crowd state without jarring jumps.</p></div><div><b>02</b><strong>Mix compatibility</strong><p>Scores BPM, key, phrase structure and vocal overlap.</p></div><div><b>03</b><strong>Memory</strong><p>Penalizes recent tracks, artists and repetitive genres.</p></div><div><b>04</b><strong>Fallbacks</strong><p>Relaxes constraints automatically so the music keeps playing.</p></div></div></section>
+<footer><span>MIXODJ / AUTONOMOUS MUSIC SYSTEM</span><span>24H REPEAT PROTECTION · HARMONIC MIXING · CONTINUOUS PLAYBACK</span></footer>
+</main>}
