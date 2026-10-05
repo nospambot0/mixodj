@@ -10,12 +10,12 @@ function choose(b:any){const a=catalog(b).filter(t=>t.id!==state.current?.id&&!s
 function aKey(k:string,offset=0){const m=(k||"").match(/^(C#|D#|F#|G#|A#|C|D|E|F|G|A|B)/);if(!m)return"";const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];return names[(names.indexOf(m[1])+offset+12)%12]}
 export async function GET(){return reply()}
 export async function POST(req:NextRequest){const b=await req.json().catch(()=>({}));const a=b.action;
-if(a==="start"){state.running=true;if(!state.current)state.current=choose(b)}
+if(a==="start"){state.running=true;if(!state.current)state.current=choose(b);while(state.queue.length<3){const t=choose(b);if(!t)break;state.queue.push(t)}}
 else if(a==="stop")state.running=false;
 else if(a==="clear")state.queue=[];
 else if(a==="add"){const t=catalog({catalog:[b.track]})[0];if(t&&t.id!==state.current?.id&&!state.queue.some(x=>x.id===t.id))state.queue.push(t);if(!state.current){state.current=state.queue.shift()||null;state.running=true}}
 else if(a==="playNow"){const t=catalog({catalog:[b.track]})[0];if(!t)return NextResponse.json({error:"track required"},{status:400});if(state.current)state.queue.unshift(state.current);state.current=t;state.running=true}
-else if(a==="next"||a==="syncEnded"){if(state.current)state.history[state.current.id]=Date.now();state.current=state.queue.shift()||choose(b);if(!state.current)state.running=false}
+else if(a==="next"||a==="syncEnded"){if(state.current)state.history[state.current.id]=Date.now();state.current=state.queue.shift()||choose(b);while(state.queue.length<3){const t=choose(b);if(!t)break;state.queue.push(t)}if(!state.current)state.running=false}
 else if(a==="autofill"){while(state.queue.length<5){const t=choose(b);if(!t)break;state.queue.push(t)}}
 else return NextResponse.json({error:"Unknown action"},{status:400});
 return reply()}
