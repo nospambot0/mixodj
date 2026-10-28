@@ -70,25 +70,89 @@ export default function Home() {
     const movie = selected;
     const video = videoRef.current;
     let cancelled = false;
-    const onLoaded = () => { const p = progressRef.current[movie.id]; if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration; };
+    let hls: import("hls.js").default | null = null;
+    const onLoaded = () => {
+      const p = progressRef.current[movie.id];
+      if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration;
+    };
+    const attachStream = async (streamUrl: string) => {
+      if (cancelled) return;
+      if (/\\.m3u8(?:$|\\?)/i.test(streamUrl)) {
+        const { default: Hls } = await import("hls.js");
+        if (cancelled) return;
+        if (Hls.isSupported()) {
+          hls = new Hls({ enableWorker: true });
+          hls.loadSource(streamUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.ERROR, (_event, data) => {
+            if (!data.fatal || cancelled) return;
+            setNotice("The stream could not be loaded. The extracted link may have expired; close and reopen the title to try again.");
+            hls?.destroy();
+            hls = null;
+          });
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = streamUrl;
+          video.load();
+        } else {
+          setNotice("This browser cannot play HLS streams. Try opening Reelroom in Safari or use a direct MP4 stream.");
+        }
+      } else {
+        video.src = streamUrl;
+        video.load();
+      }
+    };
     const onVideoError = () => {
       if (cancelled) return;
-      const code = video.error?.code;
-      const detail = code === 2 ? "network error" : code === 3 ? "decode error" : code === 4 ? "unsupported source or playlist" : "unknown media error";
-      setNotice(`Video playback failed (${detail}${code ? `, code ${code}` : ""}). The TeraBox share opens, so the remaining issue may be the gateway's HLS playlist or media segments. Try the stream test links below.`);
+      if (movie.sourceType === "terabox" || movie.surl) {
+        setNotice("The extracted stream could not be played. It may have expired or be blocked by the provider; reopen the title to extract a fresh link.");
+      } else {
+        const code = video.error?.code;
+        const detail = code === 2 ? "network error" : code === 3 ? "decode error" : code === 4 ? "unsupported source or playlist" : "unknown media error";
+        setNotice(`Video playback failed (${detail}${code ? `, code ${code}` : ""}). Use a direct, browser-playable video URL.`);
+      }
     };
     video.addEventListener("loadedmetadata", onLoaded);
     video.addEventListener("error", onVideoError);
     async function startPlayback() {
       if (movie.sourceType === "terabox" || movie.surl) {
-        setNotice("TeraBox playback is not connected yet. The Netflix-style catalogue UI is ready while you choose a streaming provider.");
+        setNotice("Extracting playable stream from TeraBox…");
+        try {
+          const response = await fetch("/api/terabox", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: movie.url }),
+          });
+          const data = await response.json();
+          if (!response.ok || data?.status !== "success") {
+            throw new Error(data?.message || "TeraBox extraction failed. Check the share link and API configuration.");
+          }
+          const files = Array.isArray(data.list) ? data.list : [];
+          const file = files.find((item: any) => item && item.type === "video" && (item.stream_url || item.fast_stream_url));
+          if (!file) throw new Error("No playable video was returned for this share link.");
+          const streams = file.fast_stream_url && typeof file.fast_stream_url === "object" ? file.fast_stream_url : {};
+          const streamUrl = file.stream_url || streams["480p"] || streams["360p"] || file.normal_dlink;
+          if (!streamUrl || !safeHttpUrl(streamUrl)) throw new Error("The provider did not return a valid playable stream URL.");
+          if (cancelled) return;
+          setNotice("");
+          await attachStream(streamUrl);
+        } catch (error) {
+          if (!cancelled) setNotice(error instanceof Error ? error.message : "TeraBox extraction failed. Please try again.");
+        }
         return;
       }
       video.src = movie.url;
       video.load();
     }
     void startPlayback();
-    return () => { cancelled = true; video.removeEventListener("loadedmetadata", onLoaded); video.removeEventListener("error", onVideoError); video.pause(); video.removeAttribute("src"); video.load(); };
+    return () => {
+      cancelled = true;
+      hls?.destroy();
+      video.removeEventListener("loadedmetadata", onLoaded);
+      video.removeEventListener("error", onVideoError);
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
   }, [selected]);
   function addMovie(e: React.FormEvent) {
     e.preventDefault();
