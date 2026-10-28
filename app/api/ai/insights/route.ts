@@ -22,12 +22,58 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "A valid title is required." }, { status: 400 });
     }
 
-    // Deterministic, metadata-grounded fallback. No third-party AI service or key is
-    // required; this avoids inventing plot details from a title or playback URL.
-    const description = typeof movie.description === "string" ? movie.description.trim() : "";
-    const summary = description
-      ? description
-      : `No synopsis is available for ${movie.title} yet. Add a verified description in Manage to improve its story summary.`;
+    const description = typeof movie.description === "string" ? movie.description.trim().slice(0, 1500) : "";
+    let summary = description || `No synopsis is available for ${movie.title} yet. Add a verified description in Manage to improve its story summary.`;
+    let mode: "ai" | "metadata" = "metadata";
+
+    // Optional server-side AI enhancement. Only catalogue metadata is sent; stream
+    // URLs, share links, secrets and playback data are deliberately excluded.
+    if (process.env.OPENAI_API_KEY && (description || movie.genre || movie.year)) {
+      try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+            temperature: 0.4,
+            max_tokens: 180,
+            messages: [
+              {
+                role: "system",
+                content: "Write a concise, spoiler-conscious streaming catalogue summary using only supplied metadata. Never invent plot events, characters, or facts. If the supplied description is empty or insufficient, say that a verified synopsis is not available. Return JSON with one string field named summary."
+              },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  title: movie.title.slice(0, 160),
+                  year: (movie.year || "").slice(0, 8),
+                  genre: (movie.genre || "").slice(0, 100),
+                  verifiedDescription: description
+                })
+              }
+            ],
+            response_format: { type: "json_object" }
+          }),
+          signal: AbortSignal.timeout(8000)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const raw = data?.choices?.[0]?.message?.content;
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed.summary === "string" && parsed.summary.trim()) {
+              summary = parsed.summary.trim().slice(0, 700);
+              mode = "ai";
+            }
+          }
+        }
+      } catch {
+        // Fall back to the verified catalogue description if the AI provider is down.
+      }
+    }
 
     const genre = (movie.genre || "").trim().toLowerCase();
     const recommendations = catalogue
@@ -53,7 +99,7 @@ export async function POST(request: Request) {
         surl: item.surl
       }));
 
-    return NextResponse.json({ summary, recommendations, mode: "metadata" });
+    return NextResponse.json({ summary, recommendations, mode });
   } catch {
     return NextResponse.json({ message: "Could not prepare title insights." }, { status: 400 });
   }
