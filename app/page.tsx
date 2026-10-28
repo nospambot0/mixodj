@@ -170,7 +170,7 @@ export default function Home() {
   }
   return <main className="app-shell">
     <header className="topbar">
-      <a className="brand" href="#" aria-label="Reelroom home"><span className="brand-mark"><Icon name="film" size={22}/></span><span>reelroom<span className="brand-dot">.</span></span></a>
+      <a className="brand" href="#" aria-label="Gawkroom home"><span className="brand-mark"><Icon name="film" size={22}/></span><span>GAWKROOM<span className="brand-dot">.</span></span></a>
       <nav className="desktop-nav"><a className="nav-active" href="#library">Home</a><a href="#trending">Trending</a><a href="#continue">Continue watching</a><a href="#library">My List</a></nav>
       <div className="top-actions"><label className="searchbox"><Icon name="search" size={18}/><input aria-label="Search movies" placeholder="Search titles…" value={query} onChange={e => setQuery(e.target.value)}/><kbd>⌘ K</kbd></label><button className="avatar-button" aria-label="Add movie link" onClick={() => setAdminOpen(true)}>+</button></div>
     </header>
