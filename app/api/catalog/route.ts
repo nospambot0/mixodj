@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (typeof m.id !== "string" || !/^[a-zA-Z0-9_-]{1,80}$/.test(m.id) || typeof m.title !== "string" || !m.title.trim() || m.title.length > 120 || !isHttpUrl(m.url)) {
       return NextResponse.json({ message: "Each title needs a valid ID, title, and HTTP(S) video URL." }, { status: 400 });
     }
-    if (m.poster && !(isHttpUrl(m.poster) || m.poster.startsWith("/uploads/") || (typeof m.poster === "string" && m.poster.startsWith("data:image/")))) {
+    if (typeof m.poster === "string" && m.poster && !(isHttpUrl(m.poster) || m.poster.startsWith("/uploads/") || m.poster.startsWith("data:image/"))) {
       return NextResponse.json({ message: "Poster artwork must be an uploaded image or a valid HTTP(S) URL." }, { status: 400 });
     }
     movies.push({ ...m, title: m.title.trim(), year: String(m.year || "").slice(0, 4), genre: String(m.genre || "Drama").slice(0, 40), description: String(m.description || "").slice(0, 500) });
