@@ -1,6 +1,6 @@
 # Reelroom — direct video links
 
-Mobile-first movie catalogue with search, genre filters, HTML5 video playback, and resume progress. It does **not** upload, proxy, or store video files and does **not** use Cloudflare R2.
+Mobile-first movie catalogue with search, genre filters, HTML5 video playback, HLS streaming for TeraBox share links, and resume progress. It does **not** upload or store video files and does **not** use Cloudflare R2.
 
 ## Run locally
 
@@ -27,7 +27,7 @@ Edit `data/movies.json` and redeploy. Example:
 ]
 ``
 
-Use only direct, browser-playable HTTP(S) video URLs you own or are authorized to distribute. The `url` should return video bytes, not an HTML landing page. MP4 with H.264 video and AAC audio is the broadest compatibility target; WebM is also supported in many browsers. Hosting must allow cross-origin requests when needed and support byte-range requests for seeking.
+Use only video links you own or are authorized to access and distribute. Direct URLs should return video bytes. MP4 with H.264 video and AAC audio is broadly compatible.
 
 ## Add links in the app
 
@@ -35,7 +35,7 @@ The “Add video URL” panel saves links in the current browser's local storage
 
 ## TeraBox note
 
-A normal TeraBox share link is generally an HTML share page, not a direct video file URL. Paste only a genuine direct video URL that is accessible to the browser and permitted by the source. Some TeraBox URLs may be temporary, require cookies or authorization, block cross-origin playback, or not support seeking; this app cannot bypass those restrictions. If a link fails, the URL provider must offer a browser-playable direct stream.
+A TeraBox share URL can be added directly. Reelroom first calls the documented `mode=resolve` endpoint, then plays the `mode=stream` HLS playlist using Hls.js (or native HLS where supported). It uses the public worker endpoint documented by [saahiyo/terabox-gateway](https://github.com/saahiyo/terabox-gateway). That shared service can be rate-limited or unavailable; private, expired, password-protected, or unsupported shares may still fail. Use only content you are authorized to access.
 
 ## Privacy and progress
 
