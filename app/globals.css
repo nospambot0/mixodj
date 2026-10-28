@@ -120,3 +120,7 @@ body{background:#080808;color:#f5f5f1}
 .cinematic-controls .cinematic-play-toggle:hover{background:#bd0811}
 
 .youtube-player{display:block;border:0;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;max-height:60vh}
+
+
+/* Persistent admin session controls */
+.remember-me{display:flex!important;flex-direction:row!important;align-items:center;gap:9px!important;color:#ddd!important;font-size:12px!important;cursor:pointer}.remember-me input{width:16px!important;height:16px!important;accent-color:#e50914}.manage-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
