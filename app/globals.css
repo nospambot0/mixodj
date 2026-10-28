@@ -86,3 +86,27 @@ body{background:#080808;color:#f5f5f1}
 .notice{background:#301014;border-color:#7b1820;color:#fff}
 @media(max-width:900px){.app-shell{padding:0 4%}.topbar{height:68px;gap:14px}.brand{font-size:25px}.desktop-nav{gap:14px;font-size:12px}.hero.netflix-hero{margin:0 -4.35% 10px;padding:35px 4.35% 30px;min-height:500px}.hero-feature-card{right:3%;width:38%;height:68%;top:16%;opacity:.55}.hero-copy{max-width:60%}.hero h1{font-size:clamp(43px,7vw,68px);letter-spacing:-2.5px}.hero-copy>p{font-size:15px}.movie-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:600px){.app-shell{padding:0 16px 78px}.topbar{height:62px;padding:0;gap:10px}.brand{font-size:23px}.desktop-nav{display:none}.top-actions{gap:8px}.searchbox{width:42px;min-width:42px;padding:0 11px;overflow:hidden;border-color:transparent;background:transparent}.searchbox:focus-within{position:absolute;left:0;right:48px;width:auto;z-index:10;background:#080808;border-color:#777}.searchbox input{min-width:0;width:100%}.searchbox kbd{display:none}.avatar-button{width:34px;height:34px;border-radius:3px}.hero.netflix-hero{margin:0 -16px 24px;padding:0 20px 28px;min-height:490px;align-items:flex-end}.hero-backdrop{background:radial-gradient(ellipse at 80% 20%,rgba(145,20,25,.4),transparent 40%),linear-gradient(0deg,#080808 0%,rgba(8,8,8,.88) 33%,rgba(8,8,8,.2) 100%)}.hero-glow{width:340px;height:340px;right:-20%;top:-8%}.hero-copy{max-width:100%;padding:210px 0 0}.hero .eyebrow{font-size:9px;letter-spacing:1.6px}.hero-overline{font-size:9px;letter-spacing:2px;margin:16px 0 8px}.hero h1{font-size:48px;line-height:1.01;letter-spacing:-2.5px}.hero-copy>p{font-size:14px;line-height:1.55;margin:15px 0 20px;max-width:370px}.hero-buttons{display:flex;gap:9px}.primary-cta,.secondary-cta{padding:11px 13px;font-size:12px;min-height:42px}.hero-foot{margin-top:23px;font-size:8px;letter-spacing:1px}.hero-feature-card{width:58%;height:42%;right:3%;top:4%;opacity:.85;transform:perspective(900px) rotateY(-6deg) rotateZ(1deg)}.content-section{margin-bottom:30px}.netflix-row-section .section-heading h2{font-size:19px}.netflix-row-section .section-kicker{font-size:8px;letter-spacing:1.1px}.section-count{font-size:8px}.filter-row{margin:12px 0 15px}.genre-tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px}.genre-tab{white-space:nowrap;padding:7px 11px;font-size:11px}.movie-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:23px 12px}.movie-row{gap:10px;overflow-x:auto;padding:2px 2px 10px}.movie-row .movie-card{min-width:43%;max-width:43%}.movie-title{font-size:12px}.movie-subtitle{font-size:10px}.poster-topline{font-size:7px}.empty-state{padding:38px 16px}.empty-state h3{font-size:20px}.library-tools{margin:32px 0;padding:20px 0;gap:15px}.library-tools h3{font-size:18px}.tool-buttons{display:flex;flex-wrap:wrap}.footer{padding-bottom:20px}.footer>span{display:none}.mobile-bottom-nav{left:0;right:0;bottom:0;padding-bottom:env(safe-area-inset-bottom);z-index:15}.player-modal,.upload-modal{max-height:90vh;overflow:auto;padding:18px}.player-top h2{font-size:22px}}
+
+
+/* GAWKROOM title management */
+.manage-nav-link { border: 0; background: transparent; color: #d9d9df; font: inherit; cursor: pointer; padding: 8px 0; }
+.manage-nav-link:hover { color: #fff; }
+.manage-page { position: relative; z-index: 2; padding-top: 28px; padding-bottom: 48px; }
+.manage-list { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+.manage-item { display: flex; align-items: center; gap: 16px; padding: 12px; border: 1px solid rgba(255,255,255,.09); border-radius: 12px; background: rgba(255,255,255,.035); min-width: 0; }
+.manage-thumb { width: 58px; height: 78px; border-radius: 7px; overflow: hidden; flex: 0 0 auto; background: #19191e; }
+.manage-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.manage-thumb-placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: #e50914; }
+.manage-item-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.manage-item-info strong { color: #fff; font-size: 14px; overflow-wrap: anywhere; }
+.manage-item-info span, .manage-item-info small { color: #9999a4; font-size: 12px; }
+.manage-edit { white-space: nowrap; padding: 10px 12px; }
+.manage-delete { background: transparent; border: 1px solid rgba(229,9,20,.45); color: #ff777e; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.manage-delete:hover { background: rgba(229,9,20,.12); }
+@media (max-width: 680px) {
+  .manage-item { gap: 10px; flex-wrap: wrap; }
+  .manage-item-info { flex-basis: calc(100% - 80px); }
+  .manage-edit { margin-left: 68px; }
+  .manage-edit, .manage-delete { font-size: 12px; }
+  .manage-page .section-heading { align-items: flex-start; gap: 12px; }
+}
