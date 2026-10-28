@@ -23,7 +23,6 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
   if (name === "play") return <svg {...common}><path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none"/></svg>;
   if (name === "plus") return <svg {...common}><path d="M12 5v14M5 12h14"/></svg>;
   if (name === "film") return <svg {...common}><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 3v18M17 3v18M3 8h4m-4 8h4m10-8h4m-4 8h4"/></svg>;
-  if (name === "upload") return <svg {...common}><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 16v4h16v-4"/></svg>;
   if (name === "close") return <svg {...common}><path d="m6 6 12 12M18 6 6 18"/></svg>;
   if (name === "external") return <svg {...common}><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg>;
   return <svg {...common}><circle cx="12" cy="12" r="9"/></svg>;
@@ -105,22 +104,6 @@ export default function Home() {
     setMovies([...local, ...(seedMovies as Movie[]).filter(m => !local.some(x => x.id === m.id))]);
     setCustomIds(local.map(m => m.id)); setTitle(""); setUrl(""); setYear(""); setDescription(""); setPoster(""); setNotice("Movie link added on this device."); setAdminOpen(false);
   }
-  function exportMovies() {
-    const data = JSON.stringify(movies.filter(m => customIds.includes(m.id)), null, 2);
-    const blob = new Blob([data], { type: "application/json" }); const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = "reelroom-movies.json"; a.click(); URL.revokeObjectURL(a.href);
-  }
-  async function importMovies(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return;
-    try {
-      const data = JSON.parse(await file.text());
-      if (!Array.isArray(data)) throw new Error("The file must contain a JSON array.");
-      const incoming = data.filter((m: Movie) => m && typeof m.title === "string" && safeHttpUrl(m.url)).map((m: Movie) => ({ ...m, id: m.id || crypto.randomUUID() }));
-      const merged = [...incoming, ...movies.filter(m => customIds.includes(m.id) && !incoming.some((x: Movie) => x.id === m.id))];
-      localStorage.setItem(STORE, JSON.stringify(merged)); loadLocal(); setNotice(`Imported ${incoming.length} movie link(s).`);
-    } catch (err: any) { setNotice(err?.message || "Could not import that JSON file."); }
-    e.target.value = "";
-  }
   return <main className="app-shell">
     <header className="topbar">
       <a className="brand" href="#" aria-label="Reelroom home"><span className="brand-mark"><Icon name="film" size={22}/></span><span>reelroom<span className="brand-dot">.</span></span></a>
@@ -138,7 +121,6 @@ export default function Home() {
       <div className="filter-row"><div className="mobile-search"><Icon name="search" size={18}/><input placeholder="Search your library" value={query} onChange={e => setQuery(e.target.value)}/></div><div className="genre-tabs" role="group" aria-label="Filter by genre">{genres.map(g => <button key={g} className={genre === g ? "genre-tab selected" : "genre-tab"} onClick={() => setGenre(g)}>{g}</button>)}</div></div>
       {filtered.length ? <div className="movie-grid">{filtered.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div> : <div className="empty-state netflix-empty"><div className="empty-icon"><Icon name="film" size={30}/></div><h3>{movies.length ? "No matching titles" : "Your screen is ready for a story"}</h3><p>{movies.length ? "Try another title or choose a different genre." : "Your movie rows will appear here when you add titles or import your catalogue."}</p>{!movies.length && <button className="primary-cta" onClick={() => setAdminOpen(true)}><Icon name="plus" size={17}/> Add your first movie</button>}</div>}
     </section>
-    <section className="library-tools"><div><span className="section-kicker">YOUR CATALOGUE</span><h3>Move your movie list between devices</h3><p>Links and saved progress stay in this browser. Export or import your custom movie list as JSON.</p></div><div className="tool-buttons"><button className="secondary-cta" onClick={exportMovies}><Icon name="external" size={15}/> Export links</button><label className="secondary-cta import-button"><Icon name="upload" size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importMovies}/></label></div></section>
     <footer className="footer"><a className="brand footer-brand" href="#"><span className="brand-mark"><Icon name="film" size={18}/></span><span>reelroom<span className="brand-dot">.</span></span></a><span>GOOD STORIES DESERVE THE BIG SCREEN.</span><button onClick={() => setAdminOpen(true)}>Add video link</button></footer>
     <div className="mobile-bottom-nav"><a className="bottom-active" href="#"><Icon name="film" size={19}/><span>Discover</span></a><a href="#library"><Icon name="search" size={19}/><span>Library</span></a><button onClick={() => setAdminOpen(true)}><Icon name="plus" size={19}/><span>Add link</span></button></div>
     {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="player-modal" role="dialog" aria-modal="true" aria-label={selected.title} onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">NOW PLAYING</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close player"><Icon name="close"/></button></div><video ref={videoRef} className="video-player" controls playsInline preload="metadata" onTimeUpdate={e => { const v = e.currentTarget; if (v.duration && Number.isFinite(v.duration)) saveProgress(selected.id, v.currentTime / v.duration); }} onEnded={() => saveProgress(selected.id, 1)} onError={() => { if (selected.sourceType !== "terabox") setNotice("Playback failed. Use a direct, browser-playable video URL or add a TeraBox share link."); }}/>{notice && <div className="notice player-notice" role="alert">{notice}</div>}<div className="player-details"><span>{selected.year || "YEAR N/A"} · {selected.genre || "FILM"}</span><p>{selected.description || "Enjoy the movie."}</p><a className="external-link" href={selected.url} target="_blank" rel="noreferrer">Open source link <Icon name="external" size={14}/></a></div></section></div>}
