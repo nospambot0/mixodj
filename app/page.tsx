@@ -74,7 +74,14 @@ export default function Home() {
     let cancelled = false;
     let hls: import("hls.js").default | null = null;
     const onLoaded = () => { const p = progressRef.current[movie.id]; if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration; };
+    const onVideoError = () => {
+      if (cancelled) return;
+      const code = video.error?.code;
+      const detail = code === 2 ? "network error" : code === 3 ? "decode error" : code === 4 ? "unsupported source or playlist" : "unknown media error";
+      setNotice(`Video playback failed (${detail}${code ? `, code ${code}` : ""}). Check the TeraBox share and gateway stream; try opening the share URL directly to confirm it is accessible.`);
+    };
     video.addEventListener("loadedmetadata", onLoaded);
+    video.addEventListener("error", onVideoError);
     async function startPlayback() {
       try {
         if (movie.sourceType === "terabox" || movie.surl) {
@@ -94,11 +101,13 @@ export default function Home() {
             if (cancelled) return;
             if (!Hls.isSupported()) throw new Error("This browser cannot play HLS streams. Try an updated Safari or Chrome browser.");
             hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+              if (data.fatal && !cancelled) {
+                setNotice(`TeraBox HLS error: ${data.details || data.type || "unknown error"}${data.response?.code ? ` (HTTP ${data.response.code})` : ""}. The share may be inaccessible or the gateway may be failing.`);
+              }
+            });
             hls.loadSource(streamUrl);
             hls.attachMedia(video);
-            hls.on(Hls.Events.ERROR, (_event, data) => {
-              if (data.fatal && !cancelled) setNotice("TeraBox stream failed. The share may be private, expired, unavailable, or the gateway may be temporarily down.");
-            });
           }
         } else {
           video.src = movie.url;
@@ -109,7 +118,7 @@ export default function Home() {
       }
     }
     void startPlayback();
-    return () => { cancelled = true; video.removeEventListener("loadedmetadata", onLoaded); hls?.destroy(); video.pause(); video.removeAttribute("src"); video.load(); };
+    return () => { cancelled = true; video.removeEventListener("loadedmetadata", onLoaded); video.removeEventListener("error", onVideoError); hls?.destroy(); video.pause(); video.removeAttribute("src"); video.load(); };
   }, [selected]);
   function addMovie(e: React.FormEvent) {
     e.preventDefault();
