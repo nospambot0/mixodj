@@ -51,24 +51,6 @@ export default function Home() {
     setSiteAccess(true);
     setSiteAccessError("");
   }
-  if (!siteAccessReady || !siteAccess) return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "#090a0d", color: "#f4f4f5", fontFamily: "Arial, sans-serif" }}>
-    <section style={{ width: "100%", maxWidth: 420, padding: 32, border: "1px solid #292a32", borderRadius: 20, background: "#111217", boxSizing: "border-box" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-        <div style={{ width: 42, height: 42, display: "grid", placeItems: "center", borderRadius: 12, background: "#24202f", color: "#c7a9ff", fontSize: 22 }}>▶</div>
-        <div style={{ fontSize: 24, fontWeight: 750 }}>ReelRoom<span style={{ color: "#b9a0ff" }}>.</span></div>
-      </div>
-      <p style={{ color: "#b9a0ff", fontSize: 11, fontWeight: 700, letterSpacing: ".16em", marginBottom: 8 }}>PRIVATE ACCESS</p>
-      <h1 style={{ fontSize: 28, lineHeight: 1.2, margin: "0 0 10px" }}>Enter password</h1>
-      <p style={{ color: "#a5a7b0", lineHeight: 1.6, fontSize: 14, marginBottom: 24 }}>Enter the site password to continue. Access stays open on this browser for 24 hours.</p>
-      <form onSubmit={unlockSite}>
-        <label htmlFor="site-access-password" style={{ display: "block", fontSize: 13, marginBottom: 8, color: "#d5d5dc" }}>Password</label>
-        <input id="site-access-password" type="password" autoComplete="current-password" autoFocus value={sitePassword} onChange={e => setSitePassword(e.target.value)} placeholder="Enter site password" required style={{ width: "100%", boxSizing: "border-box", padding: "14px 15px", borderRadius: 10, border: "1px solid #3a3b45", background: "#090a0d", color: "#fff", fontSize: 16, outlineOffset: 3 }}/>
-        {siteAccessError && <p role="alert" style={{ color: "#ff8b8b", fontSize: 13, margin: "10px 0 0" }}>{siteAccessError}</p>}
-        <button type="submit" style={{ width: "100%", marginTop: 18, border: 0, borderRadius: 10, padding: "14px 16px", background: "#f4f4f5", color: "#111217", fontWeight: 750, fontSize: 15, cursor: "pointer" }}>Enter ReelRoom</button>
-      </form>
-      <p style={{ color: "#737681", fontSize: 11, lineHeight: 1.5, marginTop: 20 }}>Session expires automatically after 24 hours.</p>
-    </section>
-  </main>;
   const [movies, setMovies] = useState<Movie[]>([]);
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("All");
@@ -259,6 +241,24 @@ export default function Home() {
     if (!window.confirm(`Remove "${movie.title}" from the public catalogue? This change will be committed to GitHub.`)) return;
     if (await publishMovies(movies.filter(m => m.id !== movie.id))) setNotice("Title removed from the public catalogue. Vercel will redeploy automatically.");
   }
+  if (!siteAccessReady || !siteAccess) return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "#090a0d", color: "#f4f4f5", fontFamily: "Arial, sans-serif" }}>
+    <section style={{ width: "100%", maxWidth: 420, padding: 32, border: "1px solid #292a32", borderRadius: 20, background: "#111217", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+        <div style={{ width: 42, height: 42, display: "grid", placeItems: "center", borderRadius: 12, background: "#24202f", color: "#c7a9ff", fontSize: 22 }}>▶</div>
+        <div style={{ fontSize: 24, fontWeight: 750 }}>ReelRoom<span style={{ color: "#b9a0ff" }}>.</span></div>
+      </div>
+      <p style={{ color: "#b9a0ff", fontSize: 11, fontWeight: 700, letterSpacing: ".16em", marginBottom: 8 }}>PRIVATE ACCESS</p>
+      <h1 style={{ fontSize: 28, lineHeight: 1.2, margin: "0 0 10px" }}>Enter password</h1>
+      <p style={{ color: "#a5a7b0", lineHeight: 1.6, fontSize: 14, marginBottom: 24 }}>Enter the site password to continue. Access stays open on this browser for 24 hours.</p>
+      <form onSubmit={unlockSite}>
+        <label htmlFor="site-access-password" style={{ display: "block", fontSize: 13, marginBottom: 8, color: "#d5d5dc" }}>Password</label>
+        <input id="site-access-password" type="password" autoComplete="current-password" autoFocus value={sitePassword} onChange={e => setSitePassword(e.target.value)} placeholder="Enter site password" required style={{ width: "100%", boxSizing: "border-box", padding: "14px 15px", borderRadius: 10, border: "1px solid #3a3b45", background: "#090a0d", color: "#fff", fontSize: 16, outlineOffset: 3 }}/>
+        {siteAccessError && <p role="alert" style={{ color: "#ff8b8b", fontSize: 13, margin: "10px 0 0" }}>{siteAccessError}</p>}
+        <button type="submit" style={{ width: "100%", marginTop: 18, border: 0, borderRadius: 10, padding: "14px 16px", background: "#f4f4f5", color: "#111217", fontWeight: 750, fontSize: 15, cursor: "pointer" }}>Enter ReelRoom</button>
+      </form>
+      <p style={{ color: "#737681", fontSize: 11, lineHeight: 1.5, marginTop: 20 }}>Session expires automatically after 24 hours.</p>
+    </section>
+  </main>;
   return <main className="app-shell">
     <header className="topbar">
       <a className="brand" href="#" aria-label="ReelRoom home"><span className="brand-mark"><Icon name="film" size={22}/></span><span>ReelRoom<span className="brand-dot">.</span></span></a>
