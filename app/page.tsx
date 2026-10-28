@@ -2,7 +2,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import seedMovies from "../data/movies.json";
 
-type Movie = { id: string; title: string; url: string; year?: string; genre?: string; description?: string; poster?: string; addedAt?: string };
+type Movie = { id: string; title: string; url: string; sourceType?: "terabox"; surl?: string; year?: string; genre?: string; description?: string; poster?: string; addedAt?: string };
+const TERABOX_PROXY = "https://tbx-proxy.shakir-ansarii075.workers.dev/";
+function getTeraBoxShareId(value: string): string | null {
+  try {
+    const u = new URL(value);
+    const host = u.hostname.toLowerCase();
+    if (!(host.includes("terabox") || host.includes("terashare") || host.includes("terafileshare") || host.includes("freeterabox") || host.includes("1024tera"))) return null;
+    const queryId = u.searchParams.get("surl") || u.searchParams.get("shorturl");
+    if (queryId) return queryId.trim();
+    const match = u.pathname.match(/\/s\/([^/?#]+)/i);
+    return match?.[1] || null;
+  } catch { return null; }
+}
 const STORE = "reelroom-movies-v1";
 const PROGRESS = "reelroom-progress-v1";
 const gradients = ["poster-violet", "poster-blue", "poster-rose", "poster-green", "poster-gold"];
@@ -34,6 +46,8 @@ export default function Home() {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [customIds, setCustomIds] = useState<string[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const progressRef = useRef(progress);
+  useEffect(() => { progressRef.current = progress; }, [progress]);
   const loadLocal = useCallback(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(STORE) || "[]");
@@ -56,16 +70,55 @@ export default function Home() {
   useEffect(() => {
     if (!selected || !videoRef.current) return;
     const video = videoRef.current;
-    const onLoaded = () => { const p = progress[selected.id]; if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration; };
+    let cancelled = false;
+    let hls: import("hls.js").default | null = null;
+    const onLoaded = () => { const p = progressRef.current[selected.id]; if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration; };
     video.addEventListener("loadedmetadata", onLoaded);
-    return () => video.removeEventListener("loadedmetadata", onLoaded);
-  }, [selected, progress]);
+    async function startPlayback() {
+      try {
+        if (selected.sourceType === "terabox" || selected.surl) {
+          const surl = selected.surl || getTeraBoxShareId(selected.url);
+          if (!surl) throw new Error("This TeraBox share link does not contain a supported share ID.");
+          const resolved = await fetch(`${TERABOX_PROXY}?mode=resolve&surl=${encodeURIComponent(surl)}`);
+          if (!resolved.ok) throw new Error(`TeraBox could not resolve this share (HTTP ${resolved.status}). Check that the link is public and still valid.`);
+          const result = await resolved.json();
+          if (result?.error || result?.code) throw new Error(result.error || result.message || "TeraBox could not resolve this share.");
+          if (cancelled) return;
+          const streamUrl = `${TERABOX_PROXY}?mode=stream&surl=${encodeURIComponent(surl)}&type=M3U8_AUTO_720`;
+          if (video.canPlayType("application/vnd.apple.mpegurl")) {
+            video.src = streamUrl;
+            video.load();
+          } else {
+            const { default: Hls } = await import("hls.js");
+            if (cancelled) return;
+            if (!Hls.isSupported()) throw new Error("This browser cannot play HLS streams. Try an updated Safari or Chrome browser.");
+            hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+              if (data.fatal && !cancelled) setNotice("TeraBox stream failed. The share may be private, expired, unavailable, or the gateway may be temporarily down.");
+            });
+          }
+        } else {
+          video.src = selected.url;
+          video.load();
+        }
+      } catch (err) {
+        if (!cancelled) setNotice(err instanceof Error ? err.message : "Could not start playback.");
+      }
+    }
+    void startPlayback();
+    return () => { cancelled = true; video.removeEventListener("loadedmetadata", onLoaded); hls?.destroy(); video.pause(); video.removeAttribute("src"); video.load(); };
+  }, [selected]);
   function addMovie(e: React.FormEvent) {
     e.preventDefault();
     const cleanUrl = url.trim();
-    if (!title.trim() || !safeHttpUrl(cleanUrl)) { setNotice("Enter a movie title and a valid HTTP(S) direct video URL."); return; }
+    if (!title.trim() || !safeHttpUrl(cleanUrl)) { setNotice("Enter a movie title and a valid HTTP(S) video or TeraBox share URL."); return; }
     if (poster.trim() && !safeHttpUrl(poster.trim())) { setNotice("Poster URL must start with http:// or https://."); return; }
-    const movie: Movie = { id: crypto.randomUUID(), title: title.trim().slice(0, 120), url: cleanUrl, year: year.trim().slice(0, 4), genre: category, description: description.trim().slice(0, 500), poster: poster.trim(), addedAt: new Date().toISOString() };
+    const surl = getTeraBoxShareId(cleanUrl);
+    const looksLikeTeraBox = /terabox|terashare|terafileshare|freeterabox|1024tera/i.test(cleanUrl);
+    if (looksLikeTeraBox && !surl) { setNotice("Could not find a TeraBox share ID. Use a link such as https://terabox.com/s/SHARE_ID."); return; }
+    const movie: Movie = { id: crypto.randomUUID(), title: title.trim().slice(0, 120), url: cleanUrl, ...(surl ? { sourceType: "terabox" as const, surl } : {}), year: year.trim().slice(0, 4), genre: category, description: description.trim().slice(0, 500), poster: poster.trim(), addedAt: new Date().toISOString() };
     const local = [...movies.filter(m => customIds.includes(m.id)), movie];
     try { localStorage.setItem(STORE, JSON.stringify(local)); } catch { setNotice("Browser storage is full. Try a shorter catalogue."); return; }
     setMovies([...local, ...(seedMovies as Movie[]).filter(m => !local.some(x => x.id === m.id))]);
@@ -101,13 +154,13 @@ export default function Home() {
     {resume.length > 0 && <section className="content-section" id="continue"><div className="section-heading"><div><span className="section-kicker">PICK UP WHERE YOU LEFT OFF</span><h2>Continue watching</h2></div><span className="section-count">{resume.length} IN PROGRESS</span></div><div className="movie-row">{resume.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div></section>}
     <section className="content-section library-section" id="library"><div className="section-heading"><div><span className="section-kicker">THE GOOD STUFF</span><h2>{query ? "Search results" : "Your movie library"}</h2><p className="section-subtitle">{query ? `Matches for “${query}”` : "Every story has a place here."}</p></div><span className="section-count">{filtered.length} TITLES</span></div>
       <div className="filter-row"><div className="mobile-search"><Icon name="search" size={18}/><input placeholder="Search your library" value={query} onChange={e => setQuery(e.target.value)}/></div><div className="genre-tabs" role="group" aria-label="Filter by genre">{genres.map(g => <button key={g} className={genre === g ? "genre-tab selected" : "genre-tab"} onClick={() => setGenre(g)}>{g}</button>)}</div></div>
-      {filtered.length ? <div className="movie-grid">{filtered.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div> : <div className="empty-state"><div className="empty-icon"><Icon name="film" size={30}/></div><h3>{movies.length ? "No matching titles" : "Your next favourite starts here"}</h3><p>{movies.length ? "Try another title or choose a different genre." : "Add a direct, browser-playable video URL to start your library. TeraBox share-page links are not direct video URLs."}</p>{!movies.length && <button className="primary-cta" onClick={() => setAdminOpen(true)}><Icon name="plus" size={17}/> Add your first movie</button>}</div>}
+      {filtered.length ? <div className="movie-grid">{filtered.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div> : <div className="empty-state"><div className="empty-icon"><Icon name="film" size={30}/></div><h3>{movies.length ? "No matching titles" : "Your next favourite starts here"}</h3><p>{movies.length ? "Try another title or choose a different genre." : "Add a direct video URL or a TeraBox share link to start your library."}</p>{!movies.length && <button className="primary-cta" onClick={() => setAdminOpen(true)}><Icon name="plus" size={17}/> Add your first movie</button>}</div>}
     </section>
     <section className="library-tools"><div><span className="section-kicker">YOUR CATALOGUE</span><h3>Move your movie list between devices</h3><p>Links and saved progress stay in this browser. Export or import your custom movie list as JSON.</p></div><div className="tool-buttons"><button className="secondary-cta" onClick={exportMovies}><Icon name="external" size={15}/> Export links</button><label className="secondary-cta import-button"><Icon name="upload" size={15}/> Import JSON<input type="file" accept="application/json,.json" onChange={importMovies}/></label></div></section>
     <footer className="footer"><a className="brand footer-brand" href="#"><span className="brand-mark"><Icon name="film" size={18}/></span><span>reelroom<span className="brand-dot">.</span></span></a><span>GOOD STORIES DESERVE THE BIG SCREEN.</span><button onClick={() => setAdminOpen(true)}>Add video link</button></footer>
     <div className="mobile-bottom-nav"><a className="bottom-active" href="#"><Icon name="film" size={19}/><span>Discover</span></a><a href="#library"><Icon name="search" size={19}/><span>Library</span></a><button onClick={() => setAdminOpen(true)}><Icon name="plus" size={19}/><span>Add link</span></button></div>
-    {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="player-modal" role="dialog" aria-modal="true" aria-label={selected.title} onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">NOW PLAYING</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close player"><Icon name="close"/></button></div><video ref={videoRef} className="video-player" controls playsInline preload="metadata" src={selected.url} onTimeUpdate={e => { const v = e.currentTarget; if (v.duration && Number.isFinite(v.duration)) saveProgress(selected.id, v.currentTime / v.duration); }} onEnded={() => saveProgress(selected.id, 1)} onError={() => setNotice("Playback failed. This must be a direct video file URL, not a TeraBox share page. The source must allow browser access and support video byte ranges for seeking.")}/><div className="player-details"><span>{selected.year || "YEAR N/A"} · {selected.genre || "FILM"}</span><p>{selected.description || "Enjoy the movie."}</p><a className="external-link" href={selected.url} target="_blank" rel="noreferrer">Open video URL <Icon name="external" size={14}/></a></div></section></div>}
-    {adminOpen && <div className="modal-backdrop" role="presentation" onClick={() => setAdminOpen(false)}><section className="upload-modal" role="dialog" aria-modal="true" aria-label="Add a movie link" onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">THE LIBRARY KEEPS GROWING</span><h2>Add a movie link</h2></div><button className="icon-button" onClick={() => setAdminOpen(false)} aria-label="Close form"><Icon name="close"/></button></div><p className="modal-intro">Paste a direct video file URL that your browser can play. TeraBox share-page links generally cannot be used directly by the HTML video player.</p><form onSubmit={addMovie} className="upload-form"><label>Movie title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} placeholder="Give this story a name"/></label><label>Direct video URL<input type="url" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://…/movie.mp4" autoCapitalize="none" autoCorrect="off"/></label><div className="form-two"><label>Release year<input value={year} onChange={e => setYear(e.target.value)} inputMode="numeric" maxLength={4} placeholder="2026"/></label><label>Genre<select value={category} onChange={e => setCategory(e.target.value)}>{["Drama","Action","Comedy","Documentary","Animation","Thriller","Sci-Fi","Romance","Family","Other"].map(g => <option key={g}>{g}</option>)}</select></label></div><label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={500} rows={3} placeholder="A short synopsis (optional)"/></label><label>Poster image URL <span className="optional">(optional, HTTPS)</span><input type="url" value={poster} onChange={e => setPoster(e.target.value)} placeholder="https://…"/></label><button className="primary-cta upload-submit" type="submit"><Icon name="plus" size={17}/> Add to this device</button></form><p className="privacy-note">This version stores custom links in this browser only. To make a movie appear for every visitor, add it to <code>data/movies.json</code> in GitHub and redeploy.</p></section></div>}
+    {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="player-modal" role="dialog" aria-modal="true" aria-label={selected.title} onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">NOW PLAYING</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close player"><Icon name="close"/></button></div><video ref={videoRef} className="video-player" controls playsInline preload="metadata" onTimeUpdate={e => { const v = e.currentTarget; if (v.duration && Number.isFinite(v.duration)) saveProgress(selected.id, v.currentTime / v.duration); }} onEnded={() => saveProgress(selected.id, 1)} onError={() => { if (selected.sourceType !== "terabox") setNotice("Playback failed. Use a direct, browser-playable video URL or add a TeraBox share link."); }}/><div className="player-details"><span>{selected.year || "YEAR N/A"} · {selected.genre || "FILM"}</span><p>{selected.description || "Enjoy the movie."}</p><a className="external-link" href={selected.url} target="_blank" rel="noreferrer">Open video URL <Icon name="external" size={14}/></a></div></section></div>}
+    {adminOpen && <div className="modal-backdrop" role="presentation" onClick={() => setAdminOpen(false)}><section className="upload-modal" role="dialog" aria-modal="true" aria-label="Add a movie link" onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">THE LIBRARY KEEPS GROWING</span><h2>Add a movie link</h2></div><button className="icon-button" onClick={() => setAdminOpen(false)} aria-label="Close form"><Icon name="close"/></button></div><p className="modal-intro">Paste a direct video URL or a TeraBox share link. Reelroom resolves TeraBox links through the gateway HLS stream endpoint; playback still depends on the share being accessible.</p><form onSubmit={addMovie} className="upload-form"><label>Movie title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} placeholder="Give this story a name"/></label><label>Video URL or TeraBox share link<input type="url" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://terabox.com/s/… or https://…/movie.mp4" autoCapitalize="none" autoCorrect="off"/></label><div className="form-two"><label>Release year<input value={year} onChange={e => setYear(e.target.value)} inputMode="numeric" maxLength={4} placeholder="2026"/></label><label>Genre<select value={category} onChange={e => setCategory(e.target.value)}>{["Drama","Action","Comedy","Documentary","Animation","Thriller","Sci-Fi","Romance","Family","Other"].map(g => <option key={g}>{g}</option>)}</select></label></div><label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={500} rows={3} placeholder="A short synopsis (optional)"/></label><label>Poster image URL <span className="optional">(optional, HTTPS)</span><input type="url" value={poster} onChange={e => setPoster(e.target.value)} placeholder="https://…"/></label><button className="primary-cta upload-submit" type="submit"><Icon name="plus" size={17}/> Add to this device</button></form><p className="privacy-note">Custom links are saved in this browser only. TeraBox playback uses the public gateway worker documented by the linked open-source project; availability and rate limits are controlled by that service. To share titles with every visitor, add them to <code>data/movies.json</code> in GitHub and redeploy.</p></section></div>}
   </main>;
 }
 function MovieCard({ movie, index, progress, onClick }: { movie: Movie; index: number; progress: number; onClick: () => void }) {
