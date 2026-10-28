@@ -31,10 +31,10 @@ function safeHttpUrl(value: string) { try { const u = new URL(value); return u.p
 function getYouTubeVideoId(value: string): string | null {
   try {
     const u = new URL(value);
-    const host = u.hostname.toLowerCase().replace(/^www\\./, "").replace(/^m\\./, "");
+    const host = u.hostname.toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
     if (host === "youtu.be") return u.pathname.split("/").filter(Boolean)[0]?.match(/^[a-zA-Z0-9_-]{11}$/)?.[0] || null;
     if (host !== "youtube.com" && host !== "youtube-nocookie.com") return null;
-    const id = u.searchParams.get("v") || u.pathname.match(/^\\/(?:embed|shorts|live)\\/([a-zA-Z0-9_-]{11})(?:$|\\/)/)?.[1];
+    const id = u.searchParams.get("v") || u.pathname.match(/^\/(?:embed|shorts|live)\/([a-zA-Z0-9_-]{11})(?:$|\/)/)?.[1];
     return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
   } catch { return null; }
 }
@@ -219,7 +219,7 @@ export default function Home() {
     const looksLikeTeraBox = /terabox|terashare|terafileshare|freeterabox|1024tera/i.test(cleanUrl);
     if (looksLikeTeraBox && !surl) { setNotice("Could not find a TeraBox share ID. Use a link such as https://terabox.com/s/SHARE_ID."); return; }
     const youtubeId = getYouTubeVideoId(cleanUrl);
-    const looksLikeYouTube = /(^|\\.)youtube\\.com|youtu\\.be|youtube-nocookie\\.com/i.test(new URL(cleanUrl).hostname);
+    const looksLikeYouTube = /(^|\.)youtube\.com|youtu\.be|youtube-nocookie\.com/i.test(new URL(cleanUrl).hostname);
     if (looksLikeYouTube && !youtubeId) { setNotice("That YouTube URL does not contain a valid video ID. Use a YouTube watch, youtu.be, Shorts, or live link."); return; }
     const id = editingId || crypto.randomUUID();
     const movie: Movie = { id, title: title.trim().slice(0, 120), url: cleanUrl, ...(youtubeId ? { sourceType: "youtube" as const } : surl ? { sourceType: "terabox" as const, surl } : {}), year: year.trim().slice(0, 4), genre: category, description: description.trim().slice(0, 500), poster: poster.trim(), addedAt: movies.find(m => m.id === id)?.addedAt || new Date().toISOString() };
