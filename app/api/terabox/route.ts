@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const API_URL = "https://xapiverse.com/api/terabox";
-const ALLOWED_HOSTS = ["terabox.com", "terasharefile.com", "terashare.com", "teraboxapp.com", "1024tera.com", "freeterabox.com", "teraboxlink.com", "teraboxshare.com"];
+const ALLOWED_HOSTS = ["terabox.com", "terabox.app", "terasharefile.com", "terashare.com", "teraboxapp.com", "1024tera.com", "freeterabox.com", "teraboxlink.com", "teraboxshare.com"];
 
 function isTeraBoxUrl(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 2048) return false;
