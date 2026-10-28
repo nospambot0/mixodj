@@ -118,3 +118,5 @@ body{background:#080808;color:#f5f5f1}
 .cinematic-controls button span{font-size:10px}
 .cinematic-controls .cinematic-play-toggle{background:#e50914;border-color:#e50914;color:white;padding:0 20px}
 .cinematic-controls .cinematic-play-toggle:hover{background:#bd0811}
+
+.youtube-player{display:block;border:0;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;max-height:60vh}
