@@ -23,7 +23,7 @@ async function github(path: string, init?: RequestInit) {
   }
   return data;
 }
-function isHttpUrl(value: unknown): value is string {
+function isHttpUrl(value: unknown): boolean {
   if (typeof value !== "string" || value.length > 4096) return false;
   try { const u = new URL(value); return u.protocol === "https:" || u.protocol === "http:"; } catch { return false; }
 }
