@@ -69,15 +69,16 @@ export default function Home() {
   function watch(movie: Movie) { setSelected(movie); setNotice(""); }
   useEffect(() => {
     if (!selected || !videoRef.current) return;
+    const movie = selected;
     const video = videoRef.current;
     let cancelled = false;
     let hls: import("hls.js").default | null = null;
-    const onLoaded = () => { const p = progressRef.current[selected.id]; if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration; };
+    const onLoaded = () => { const p = progressRef.current[movie.id]; if (p && p > 0.01 && p < 0.98 && video.duration && Number.isFinite(video.duration)) video.currentTime = p * video.duration; };
     video.addEventListener("loadedmetadata", onLoaded);
     async function startPlayback() {
       try {
-        if (selected.sourceType === "terabox" || selected.surl) {
-          const surl = selected.surl || getTeraBoxShareId(selected.url);
+        if (movie.sourceType === "terabox" || movie.surl) {
+          const surl = movie.surl || getTeraBoxShareId(movie.url);
           if (!surl) throw new Error("This TeraBox share link does not contain a supported share ID.");
           const resolved = await fetch(`${TERABOX_PROXY}?mode=resolve&surl=${encodeURIComponent(surl)}`);
           if (!resolved.ok) throw new Error(`TeraBox could not resolve this share (HTTP ${resolved.status}). Check that the link is public and still valid.`);
@@ -100,7 +101,7 @@ export default function Home() {
             });
           }
         } else {
-          video.src = selected.url;
+          video.src = movie.url;
           video.load();
         }
       } catch (err) {
