@@ -42,7 +42,17 @@ export async function POST(request: Request) {
     if (!response.ok) {
       return NextResponse.json({ status: "error", message: data?.message || `TeraBox provider returned HTTP ${response.status}.` }, { status: 502 });
     }
-    return NextResponse.json(data ?? { status: "error", message: "The extraction provider returned an unreadable response." }, { status: 200 });
+    if (!data || typeof data !== "object") {
+      return NextResponse.json({ status: "error", message: "The TeraBox provider returned an unreadable response. Check the provider dashboard and try again." }, { status: 502 });
+    }
+    if (data.status !== "success") {
+      const message = typeof data.message === "string" ? data.message
+        : typeof data.error?.message === "string" ? data.error.message
+        : typeof data.detail === "string" ? data.detail
+        : "The extraction provider rejected this link or API key. Check your XAPIverse key, credits, and share-link access.";
+      return NextResponse.json({ status: "error", message }, { status: 502 });
+    }
+    return NextResponse.json(data, { status: 200 });
   } catch {
     return NextResponse.json({ status: "error", message: "Could not reach the TeraBox extraction provider. Please try again." }, { status: 502 });
   }
