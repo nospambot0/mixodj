@@ -112,40 +112,6 @@ body{background:#080808;color:#f5f5f1}
 }
 
 
-/* Cinematic player + catalogue-grounded AI insights */
-.player-modal{width:min(1120px,100%);max-height:92vh;overflow-y:auto}
-.player-modal .video-player{width:100%;aspect-ratio:16/9;max-height:65vh;background:#050506;object-fit:contain;border:1px solid #24252b}
-.player-modal .player-top{position:sticky;top:0;z-index:2;background:#111116;padding-bottom:14px}
-.player-details{padding:18px 2px 8px}
-.ai-insights{margin-top:22px;padding:22px;border:1px solid #2a2a33;border-radius:14px;background:linear-gradient(145deg,#17171e,#101014)}
-.ai-insights-heading{display:flex;align-items:center;gap:12px;margin-bottom:20px}
-.ai-spark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#e50914;color:#fff;font-size:22px}
-.ai-insights-heading h3{margin:4px 0 0;font-size:20px;letter-spacing:-.5px}
-.ai-label{margin-left:auto;padding:6px 9px;border:1px solid #393942;border-radius:999px;color:#c6c6cf;font-size:9px;font-weight:700;letter-spacing:1px}
-.ai-summary{padding:17px;border:1px solid #292932;border-radius:10px;background:#0e0e13}
-.ai-summary strong,.ai-recommendations-heading strong{font-size:13px}
-.ai-summary p{margin:9px 0 0;color:#c1c1ca;line-height:1.7;font-size:13px}
-.ai-muted{color:#8f909c;font-size:12px;line-height:1.65}
-.ai-recommendations-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:23px 0 13px}
-.ai-recommendations-heading>span{font-size:9px;letter-spacing:1px;color:#9a9ba7}
-.ai-recommendations{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.ai-recommendation{min-width:0;text-align:left;border:0;background:transparent;padding:0;border-radius:9px;overflow:hidden}
-.ai-rec-art{position:relative;display:grid;place-items:center;aspect-ratio:16/10;border:1px solid #33333d;border-radius:8px;background:linear-gradient(135deg,#272b3b,#15151b);color:#aaa;overflow:hidden}
-.ai-rec-art img{width:100%;height:100%;object-fit:cover}
-.ai-rec-play{position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#e50914;color:white;opacity:0;transform:translateY(4px);transition:opacity .18s,transform .18s}
-.ai-recommendation:hover .ai-rec-play,.ai-recommendation:focus-visible .ai-rec-play{opacity:1;transform:translateY(0)}
-.ai-rec-title{display:block;margin-top:9px;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ai-rec-meta{display:block;margin-top:5px;color:#90919d;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ai-disclaimer{margin:18px 0 0;color:#72737e;font-size:10px;line-height:1.5}
-@media(max-width:680px){
- .player-modal{width:100%;max-height:94vh;border-radius:14px}
- .player-modal .video-player{max-height:45vh}
- .ai-insights{padding:15px;margin-top:16px}
- .ai-insights-heading h3{font-size:17px}
- .ai-recommendations{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
- .ai-recommendations-heading{align-items:flex-start;flex-direction:column;gap:6px}
-}
-
 .cinematic-controls{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px;background:#0b0b10;border:1px solid #24242d;border-top:0}
 .cinematic-controls button{min-height:38px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 15px;border:1px solid #383842;border-radius:999px;background:#18181f;color:#f5f5f7;font-size:12px;font-weight:700}
 .cinematic-controls button:hover{border-color:#e50914;background:#211418}
