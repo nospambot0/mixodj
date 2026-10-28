@@ -45,21 +45,30 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [customIds, setCustomIds] = useState<string[]>([]);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [authDestination, setAuthDestination] = useState<"manage" | "add">("manage");
+  const [saving, setSaving] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef(progress);
   useEffect(() => { progressRef.current = progress; }, [progress]);
-  const loadLocal = useCallback(() => {
+  const loadLocal = useCallback(async () => {
     try {
-      const stored = JSON.parse(localStorage.getItem(STORE) || "[]");
       const localProgress = JSON.parse(localStorage.getItem(PROGRESS) || "{}");
-      const local = Array.isArray(stored) ? stored.filter((m: Movie) => m && m.id && safeHttpUrl(m.url)) : [];
-      const base = (seedMovies as Movie[]).filter(m => m && m.id && safeHttpUrl(m.url));
-      const merged = [...local, ...base.filter(m => !local.some((x: Movie) => x.id === m.id))];
-      setMovies(merged); setProgress(localProgress && typeof localProgress === "object" ? localProgress : {});
-      setCustomIds(local.map((m: Movie) => m.id));
-    } catch { setMovies((seedMovies as Movie[]).filter(m => m && m.id && safeHttpUrl(m.url))); }
+      setProgress(localProgress && typeof localProgress === "object" ? localProgress : {});
+    } catch {}
+    try {
+      const response = await fetch("/api/catalog", { cache: "no-store" });
+      const data = await response.json();
+      if (response.ok && Array.isArray(data.movies)) {
+        setMovies(data.movies.filter((m: Movie) => m && m.id && safeHttpUrl(m.url)));
+        setCustomIds([]);
+        return;
+      }
+    } catch {}
+    setMovies((seedMovies as Movie[]).filter(m => m && m.id && safeHttpUrl(m.url)));
   }, []);
-  useEffect(() => { loadLocal(); }, [loadLocal]);
+  useEffect(() => { void loadLocal(); }, [loadLocal]);
   const genres = useMemo(() => ["All", ...Array.from(new Set(movies.map(m => m.genre || "Uncategorized"))).sort()], [movies]);
   const filtered = useMemo(() => movies.filter(m => (genre === "All" || (m.genre || "Uncategorized") === genre) && (m.title + " " + m.year + " " + m.genre + " " + m.description).toLowerCase().includes(query.toLowerCase())), [movies, query, genre]);
   const resume = movies.filter(m => (progress[m.id] || 0) > 0.01 && (progress[m.id] || 0) < 0.98);
@@ -157,54 +166,84 @@ export default function Home() {
       video.load();
     };
   }, [selected]);
-  function addMovie(e: React.FormEvent) {
+  function requestAdmin(destination: "manage" | "add") {
+    setAuthDestination(destination);
+    setAuthOpen(true);
+    setAdminPassword("");
+  }
+  async function authenticateAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    setNotice("");
+    const response = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: adminPassword }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { setNotice(data.message || "Admin sign-in failed."); return; }
+    setAuthOpen(false);
+    setAdminPassword("");
+    if (authDestination === "manage") setManageOpen(true);
+    else setAdminOpen(true);
+  }
+  async function publishMovies(nextMovies: Movie[]) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/catalog", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ movies: nextMovies }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Could not publish catalogue changes.");
+      setMovies(data.movies);
+      setCustomIds([]);
+      return true;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not publish catalogue changes.");
+      return false;
+    } finally { setSaving(false); }
+  }
+  async function addMovie(e: React.FormEvent) {
     e.preventDefault();
     const cleanUrl = url.trim();
     if (!title.trim() || !safeHttpUrl(cleanUrl)) { setNotice("Enter a movie title and a valid HTTP(S) video or TeraBox share URL."); return; }
-    if (poster.trim() && !safeHttpUrl(poster.trim()) && !poster.startsWith("data:image/")) { setNotice("Choose a valid image file for poster artwork."); return; }
+    if (poster.trim() && !safeHttpUrl(poster.trim()) && !poster.startsWith("data:image/") && !poster.startsWith("/uploads/")) { setNotice("Choose a valid image file for poster artwork."); return; }
     const surl = getTeraBoxShareId(cleanUrl);
     const looksLikeTeraBox = /terabox|terashare|terafileshare|freeterabox|1024tera/i.test(cleanUrl);
     if (looksLikeTeraBox && !surl) { setNotice("Could not find a TeraBox share ID. Use a link such as https://terabox.com/s/SHARE_ID."); return; }
     const id = editingId || crypto.randomUUID();
     const movie: Movie = { id, title: title.trim().slice(0, 120), url: cleanUrl, ...(surl ? { sourceType: "terabox" as const, surl } : {}), year: year.trim().slice(0, 4), genre: category, description: description.trim().slice(0, 500), poster: poster.trim(), addedAt: movies.find(m => m.id === id)?.addedAt || new Date().toISOString() };
-    const local = [...movies.filter(m => m.id !== id && (customIds.includes(m.id) || !(seedMovies as Movie[]).some(seed => seed.id === m.id))), movie];
-    try { localStorage.setItem(STORE, JSON.stringify(local)); } catch { setNotice("Browser storage is full. Try a shorter catalogue."); return; }
-    setMovies([...local, ...(seedMovies as Movie[]).filter(m => !local.some(x => x.id === m.id))]);
-    setCustomIds(local.map(m => m.id)); setTitle(""); setUrl(""); setYear(""); setDescription(""); setPoster(""); setEditingId(null); setNotice(editingId ? "Title updated on this device." : "Movie link added on this device."); setAdminOpen(false); setManageOpen(false);
+    const updated = [...movies.filter(m => m.id !== id), movie];
+    if (!await publishMovies(updated)) return;
+    setTitle(""); setUrl(""); setYear(""); setDescription(""); setPoster(""); setEditingId(null);
+    setNotice("Title published for every visitor. Vercel will redeploy automatically.");
+    setAdminOpen(false); setManageOpen(false);
   }
   function editMovie(movie: Movie) {
     setEditingId(movie.id); setTitle(movie.title); setUrl(movie.url); setYear(movie.year || ""); setCategory(movie.genre || "Drama"); setDescription(movie.description || ""); setPoster(movie.poster || ""); setAdminOpen(true); setManageOpen(false);
   }
-  function deleteMovie(movie: Movie) {
-    const local = movies.filter(m => m.id !== movie.id && (customIds.includes(m.id) || !(seedMovies as Movie[]).some(seed => seed.id === m.id)));
-    try { localStorage.setItem(STORE, JSON.stringify(local)); } catch { setNotice("Could not save catalogue changes."); return; }
-    setMovies([...local, ...(seedMovies as Movie[]).filter(m => !local.some(x => x.id === m.id) && m.id !== movie.id)]);
-    setCustomIds(local.map(m => m.id)); setNotice("Title removed from this browser.");
+  async function deleteMovie(movie: Movie) {
+    if (!window.confirm(`Remove "${movie.title}" from the public catalogue? This change will be committed to GitHub.`)) return;
+    if (await publishMovies(movies.filter(m => m.id !== movie.id))) setNotice("Title removed from the public catalogue. Vercel will redeploy automatically.");
   }
   return <main className="app-shell">
     <header className="topbar">
       <a className="brand" href="#" aria-label="Gawkroom home"><span className="brand-mark"><Icon name="film" size={22}/></span><span>GAWKROOM<span className="brand-dot">.</span></span></a>
-      <nav className="desktop-nav"><a className="nav-active" href="#library">Home</a><a href="#trending">Trending</a><a href="#continue">Continue watching</a><a href="#library">My List</a><button className="manage-nav-link" onClick={() => setManageOpen(true)}>Manage</button></nav>
+      <nav className="desktop-nav"><a className="nav-active" href="#library">Home</a><a href="#trending">Trending</a><a href="#continue">Continue watching</a><a href="#library">My List</a><button className="manage-nav-link" onClick={() => requestAdmin("manage")}>Manage</button></nav>
       <div className="top-actions"><label className="searchbox"><Icon name="search" size={18}/><input aria-label="Search movies" placeholder="Search titles…" value={query} onChange={e => setQuery(e.target.value)}/><kbd>⌘ K</kbd></label><button className="avatar-button" aria-label="Add movie link" onClick={() => setAdminOpen(true)}>+</button></div>
     </header>
     <section className="hero netflix-hero">
       <div className="hero-backdrop" aria-hidden="true"><div className="hero-glow"/><div className="hero-vignette"/></div>
-      <div className="hero-copy"><div className="eyebrow"><span className="eyebrow-line"/> REELROOM ORIGINAL EXPERIENCE</div><span className="hero-overline">YOUR NEXT OBSESSION STARTS HERE</span><h1>Stories worth<br/><em>staying in for.</em></h1><p>Discover your next favourite. Build your watchlist, pick up where you left off, and make movie night yours.</p><div className="hero-buttons"><a className="primary-cta" href="#library"><Icon name="play" size={17}/> Explore titles</a><button className="secondary-cta" onClick={() => setAdminOpen(true)}><Icon name="plus" size={17}/> Add to My List</button></div><div className="hero-foot"><span><i className="live-dot"/> PERSONAL CINEMA</span><span>{movies.length} {movies.length === 1 ? "TITLE" : "TITLES"} TO EXPLORE</span></div></div>
+      <div className="hero-copy"><div className="eyebrow"><span className="eyebrow-line"/> REELROOM ORIGINAL EXPERIENCE</div><span className="hero-overline">YOUR NEXT OBSESSION STARTS HERE</span><h1>Stories worth<br/><em>staying in for.</em></h1><p>Discover your next favourite. Build your watchlist, pick up where you left off, and make movie night yours.</p><div className="hero-buttons"><a className="primary-cta" href="#library"><Icon name="play" size={17}/> Explore titles</a><button className="secondary-cta" onClick={() => requestAdmin("add")}><Icon name="plus" size={17}/> Add to My List</button></div><div className="hero-foot"><span><i className="live-dot"/> PERSONAL CINEMA</span><span>{movies.length} {movies.length === 1 ? "TITLE" : "TITLES"} TO EXPLORE</span></div></div>
       <div className="hero-feature-card" aria-hidden="true"><div className="feature-card-art"><span className="feature-orb"/><span className="feature-ridge ridge-one"/><span className="feature-ridge ridge-two"/><span className="feature-card-number">01</span><span className="feature-card-caption">A REELROOM FEATURE</span></div></div>
     </section>
     {notice && <div className="notice" role="status">{notice}</div>}
-    {manageOpen && <section className="manage-page content-section"><div className="section-heading"><div><h2>Manage titles</h2><span className="section-kicker">EDIT TITLES, POSTERS AND DETAILS</span></div><button className="secondary-cta" onClick={() => setManageOpen(false)}>Back to GAWKROOM</button></div><div className="manage-list">{movies.map(m => <article className="manage-item" key={m.id}><div className="manage-thumb">{m.poster && (safeHttpUrl(m.poster) || m.poster.startsWith("data:image/")) ? <img src={m.poster} alt="" /> : <div className="manage-thumb-placeholder"><Icon name="film" size={24}/></div>}</div><div className="manage-item-info"><strong>{m.title}</strong><span>{m.year || "Year not set"} · {m.genre || "Uncategorized"}</span><small>{customIds.includes(m.id) ? "Custom title" : "Catalogue title · edits saved in this browser"}</small></div><button className="secondary-cta manage-edit" onClick={() => editMovie(m)}>Edit artwork / details</button><button className="manage-delete" onClick={() => deleteMovie(m)} aria-label={"Remove " + m.title}>Remove</button></article>)}</div><p className="privacy-note">Changes are saved in this browser only. To make edits permanent for every visitor, update data/movies.json in GitHub and redeploy.</p></section>}
+    {manageOpen && <section className="manage-page content-section"><div className="section-heading"><div><h2>Manage titles</h2><span className="section-kicker">EDIT TITLES, POSTERS AND DETAILS</span></div><button className="secondary-cta" onClick={() => setManageOpen(false)}>Back to GAWKROOM</button></div><div className="manage-list">{movies.map(m => <article className="manage-item" key={m.id}><div className="manage-thumb">{m.poster && (safeHttpUrl(m.poster) || m.poster.startsWith("data:image/") || m.poster.startsWith("/uploads/")) ? <img src={m.poster} alt="" /> : <div className="manage-thumb-placeholder"><Icon name="film" size={24}/></div>}</div><div className="manage-item-info"><strong>{m.title}</strong><span>{m.year || "Year not set"} · {m.genre || "Uncategorized"}</span><small>{customIds.includes(m.id) ? "Custom title" : "Public catalogue title"}</small></div><button className="secondary-cta manage-edit" onClick={() => editMovie(m)}>Edit artwork / details</button><button className="manage-delete" onClick={() => deleteMovie(m)} aria-label={"Remove " + m.title}>Remove</button></article>)}</div><p className="privacy-note">Changes are committed to GitHub and published for every visitor. Vercel redeploys from the commit.</p></section>}
     {resume.length > 0 && <section className="content-section netflix-row-section" id="continue"><div className="section-heading"><div><h2>Continue watching <span className="heading-chevron">›</span></h2><span className="section-kicker">PICK UP WHERE YOU LEFT OFF</span></div><span className="section-count">{resume.length} IN PROGRESS</span></div><div className="movie-row">{resume.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div></section>}
     <section className="content-section library-section netflix-row-section" id="library"><div className="section-heading"><div><h2>{query ? "Search results" : "Popular on Reelroom"} <span className="heading-chevron">›</span></h2><span className="section-kicker">{query ? `MATCHES FOR “${query}”` : "HANDPICKED FOR YOUR NEXT MOVIE NIGHT"}</span></div><span className="section-count">{filtered.length} TITLES</span></div>
       <div className="filter-row"><div className="mobile-search"><Icon name="search" size={18}/><input placeholder="Search your library" value={query} onChange={e => setQuery(e.target.value)}/></div><div className="genre-tabs" role="group" aria-label="Filter by genre">{genres.map(g => <button key={g} className={genre === g ? "genre-tab selected" : "genre-tab"} onClick={() => setGenre(g)}>{g}</button>)}</div></div>
-      {filtered.length ? <div className="movie-grid">{filtered.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div> : <div className="empty-state netflix-empty"><div className="empty-icon"><Icon name="film" size={30}/></div><h3>{movies.length ? "No matching titles" : "Your screen is ready for a story"}</h3><p>{movies.length ? "Try another title or choose a different genre." : "Your movie rows will appear here when you add titles or import your catalogue."}</p>{!movies.length && <button className="primary-cta" onClick={() => setAdminOpen(true)}><Icon name="plus" size={17}/> Add your first movie</button>}</div>}
+      {filtered.length ? <div className="movie-grid">{filtered.map((m, i) => <MovieCard key={m.id} movie={m} index={i} progress={progress[m.id] || 0} onClick={() => watch(m)}/>)}</div> : <div className="empty-state netflix-empty"><div className="empty-icon"><Icon name="film" size={30}/></div><h3>{movies.length ? "No matching titles" : "Your screen is ready for a story"}</h3><p>{movies.length ? "Try another title or choose a different genre." : "Your movie rows will appear here when you add titles or import your catalogue."}</p>{!movies.length && <button className="primary-cta" onClick={() => requestAdmin("add")}><Icon name="plus" size={17}/> Add your first movie</button>}</div>}
     </section>
-    <footer className="footer"><a className="brand footer-brand" href="#"><span className="brand-mark"><Icon name="film" size={18}/></span><span>reelroom<span className="brand-dot">.</span></span></a><span>GOOD STORIES DESERVE THE BIG SCREEN.</span><button onClick={() => setAdminOpen(true)}>Add video link</button></footer>
-    <div className="mobile-bottom-nav" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}><a className="bottom-active" href="#"><Icon name="film" size={19}/><span>Discover</span></a><a href="#library"><Icon name="search" size={19}/><span>Library</span></a><button onClick={() => setManageOpen(true)}><Icon name="settings" size={19}/><span>Manage</span></button><button onClick={() => setAdminOpen(true)}><Icon name="plus" size={19}/><span>Add link</span></button></div>
+    <footer className="footer"><a className="brand footer-brand" href="#"><span className="brand-mark"><Icon name="film" size={18}/></span><span>reelroom<span className="brand-dot">.</span></span></a><span>GOOD STORIES DESERVE THE BIG SCREEN.</span><button onClick={() => requestAdmin("add")}>Add video link</button></footer>
+    <div className="mobile-bottom-nav" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}><a className="bottom-active" href="#"><Icon name="film" size={19}/><span>Discover</span></a><a href="#library"><Icon name="search" size={19}/><span>Library</span></a><button onClick={() => requestAdmin("manage")}><Icon name="settings" size={19}/><span>Manage</span></button><button onClick={() => requestAdmin("add")}><Icon name="plus" size={19}/><span>Add link</span></button></div>
     {selected && <div className="modal-backdrop" role="presentation" onClick={() => setSelected(null)}><section className="player-modal" role="dialog" aria-modal="true" aria-label={selected.title} onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">NOW PLAYING</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setSelected(null)} aria-label="Close player"><Icon name="close"/></button></div><video ref={videoRef} className="video-player" controls playsInline preload="metadata" onTimeUpdate={e => { const v = e.currentTarget; if (v.duration && Number.isFinite(v.duration)) saveProgress(selected.id, v.currentTime / v.duration); }} onEnded={() => saveProgress(selected.id, 1)} onError={() => { if (selected.sourceType !== "terabox") setNotice("Playback failed. Use a direct, browser-playable video URL or add a TeraBox share link."); }}/>{notice && <div className="notice player-notice" role="alert">{notice}</div>}<div className="player-details"><span>{selected.year || "YEAR N/A"} · {selected.genre || "FILM"}</span><p>{selected.description || "Enjoy the movie."}</p><a className="external-link" href={selected.url} target="_blank" rel="noreferrer">Open source link <Icon name="external" size={14}/></a></div></section></div>}
-    {adminOpen && <div className="modal-backdrop" role="presentation" onClick={() => setAdminOpen(false)}><section className="upload-modal" role="dialog" aria-modal="true" aria-label="Add a movie link" onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">THE LIBRARY KEEPS GROWING</span><h2>{editingId ? "Edit title" : "Add a movie link"}</h2></div><button className="icon-button" onClick={() => { setAdminOpen(false); setEditingId(null); }} aria-label="Close form"><Icon name="close"/></button></div><p className="modal-intro">{editingId ? "Update the title, poster artwork, and catalogue details." : "Add a title to your personal GAWKROOM catalogue. Streaming support can be connected later when you choose a provider."}</p><form onSubmit={addMovie} className="upload-form"><label>Movie title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} placeholder="Give this story a name"/></label><label>Video URL or TeraBox share link<input type="url" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://terabox.com/s/… or https://…/movie.mp4" autoCapitalize="none" autoCorrect="off"/></label><div className="form-two"><label>Release year<input value={year} onChange={e => setYear(e.target.value)} inputMode="numeric" maxLength={4} placeholder="2026"/></label><label>Genre<select value={category} onChange={e => setCategory(e.target.value)}>{["Drama","Action","Comedy","Documentary","Animation","Thriller","Sci-Fi","Romance","Family","Other"].map(g => <option key={g}>{g}</option>)}</select></label></div><label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={500} rows={3} placeholder="A short synopsis (optional)"/></label><label>Upload poster artwork <span className="optional">(optional · JPG, PNG, WEBP · max 1 MB)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const file = e.currentTarget.files?.[0]; if (!file) return; if (!file.type.startsWith("image/")) { setNotice("Please choose an image file."); e.currentTarget.value = ""; return; } if (file.size > 1024 * 1024) { setNotice("Artwork must be 1 MB or smaller. Resize the image and try again."); e.currentTarget.value = ""; return; } const reader = new FileReader(); reader.onload = () => { if (typeof reader.result === "string") { setPoster(reader.result); setNotice("Artwork selected."); } }; reader.onerror = () => setNotice("Could not read that image. Try another file."); reader.readAsDataURL(file); }}/>{poster && <span className="optional">Artwork selected. Upload another image to replace it.</span>}</label><button className="primary-cta upload-submit" type="submit"><Icon name="plus" size={17}/> {editingId ? "Save changes" : "Add to this device"}</button></form><p className="privacy-note">Custom titles are saved in this browser only. Streaming is intentionally unconfigured while you choose a provider. To share titles with every visitor, add them to <code>data/movies.json</code> in GitHub and redeploy.</p></section></div>}
+    {authOpen && <div className="modal-backdrop" role="presentation" onClick={() => setAuthOpen(false)}><section className="upload-modal" role="dialog" aria-modal="true" aria-label="Administrator sign in" onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">RESTRICTED ACCESS</span><h2>Admin sign in</h2></div><button className="icon-button" onClick={() => setAuthOpen(false)} aria-label="Close sign in"><Icon name="close"/></button></div><p className="modal-intro">Sign in to publish catalogue changes to GitHub. The public can browse titles but cannot edit them.</p><form className="upload-form" onSubmit={authenticateAdmin}>{notice && <div className="notice" role="alert">{notice}</div>}<label>Admin password<input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} required autoComplete="current-password" placeholder="Enter admin password"/></label><button className="primary-cta upload-submit" type="submit">Sign in securely</button></form><p className="privacy-note">Admin access must be configured in Vercel Environment Variables before signing in.</p></section></div>}
+    {adminOpen && <div className="modal-backdrop" role="presentation" onClick={() => setAdminOpen(false)}><section className="upload-modal" role="dialog" aria-modal="true" aria-label="Add a movie link" onClick={e => e.stopPropagation()}><div className="player-top"><div><span className="section-kicker">THE LIBRARY KEEPS GROWING</span><h2>{editingId ? "Edit title" : "Add a movie link"}</h2></div><button className="icon-button" onClick={() => { setAdminOpen(false); setEditingId(null); }} aria-label="Close form"><Icon name="close"/></button></div><p className="modal-intro">{editingId ? "Update the title, poster artwork, and catalogue details." : "Add a title to your personal GAWKROOM catalogue. Streaming support can be connected later when you choose a provider."}</p><form onSubmit={addMovie} className="upload-form"><label>Movie title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} placeholder="Give this story a name"/></label><label>Video URL or TeraBox share link<input type="url" value={url} onChange={e => setUrl(e.target.value)} required placeholder="https://terabox.com/s/… or https://…/movie.mp4" autoCapitalize="none" autoCorrect="off"/></label><div className="form-two"><label>Release year<input value={year} onChange={e => setYear(e.target.value)} inputMode="numeric" maxLength={4} placeholder="2026"/></label><label>Genre<select value={category} onChange={e => setCategory(e.target.value)}>{["Drama","Action","Comedy","Documentary","Animation","Thriller","Sci-Fi","Romance","Family","Other"].map(g => <option key={g}>{g}</option>)}</select></label></div><label>Description<textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={500} rows={3} placeholder="A short synopsis (optional)"/></label><label>Upload poster artwork <span className="optional">(optional · JPG, PNG, WEBP · max 1 MB)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const file = e.currentTarget.files?.[0]; if (!file) return; if (!file.type.startsWith("image/")) { setNotice("Please choose an image file."); e.currentTarget.value = ""; return; } if (file.size > 1024 * 1024) { setNotice("Artwork must be 1 MB or smaller. Resize the image and try again."); e.currentTarget.value = ""; return; } const reader = new FileReader(); reader.onload = () => { if (typeof reader.result === "string") { setPoster(reader.result); setNotice("Artwork selected."); } }; reader.onerror = () => setNotice("Could not read that image. Try another file."); reader.readAsDataURL(file); }}/>{poster && <span className="optional">Artwork selected. Upload another image to replace it.</span>}</label><button className="primary-cta upload-submit" type="submit" disabled={saving}><Icon name="plus" size={17}/> {saving ? "Publishing…" : editingId ? "Save changes" : "Publish to everyone"}</button></form><p className="privacy-note">Custom titles are saved in this browser only. Changes are saved to GitHub. Keep your admin password private.</p></section></div>}
   </main>;
 }
 function MovieCard({ movie, index, progress, onClick }: { movie: Movie; index: number; progress: number; onClick: () => void }) {
-  return <button className="movie-card" onClick={onClick}><div className={`poster ${gradients[index % gradients.length]}`}>{movie.poster && (safeHttpUrl(movie.poster) || movie.poster.startsWith("data:image/")) ? <img src={movie.poster} alt="" loading="lazy"/> : <div className="poster-art"><span className="poster-orb"/><span className="poster-lines"/><span className="poster-stamp">RR</span></div>}<span className="poster-topline">REELROOM <span>№ {String(index + 1).padStart(2, "0")}</span></span><span className="poster-play"><Icon name="play" size={21}/></span>{progress > 0.01 && progress < 1 && <span className="progress-track"><i style={{ width: `${Math.min(100, progress * 100)}%` }}/></span>}</div><div className="movie-meta"><div className="movie-title">{movie.title}</div><div className="movie-subtitle">{movie.year || "FEATURE"} <span>·</span> {movie.genre || "FILM"}</div></div></button>;
+  return <button className="movie-card" onClick={onClick}><div className={`poster ${gradients[index % gradients.length]}`}>{movie.poster && (safeHttpUrl(movie.poster) || movie.poster.startsWith("data:image/") || movie.poster.startsWith("/uploads/")) ? <img src={movie.poster} alt="" loading="lazy"/> : <div className="poster-art"><span className="poster-orb"/><span className="poster-lines"/><span className="poster-stamp">RR</span></div>}<span className="poster-topline">REELROOM <span>№ {String(index + 1).padStart(2, "0")}</span></span><span className="poster-play"><Icon name="play" size={21}/></span>{progress > 0.01 && progress < 1 && <span className="progress-track"><i style={{ width: `${Math.min(100, progress * 100)}%` }}/></span>}</div><div className="movie-meta"><div className="movie-title">{movie.title}</div><div className="movie-subtitle">{movie.year || "FEATURE"} <span>·</span> {movie.genre || "FILM"}</div></div></button>;
 }
