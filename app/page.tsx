@@ -69,6 +69,7 @@ export default function Home() {
     if (!selected || !videoRef.current) return;
     const movie = selected;
     const video = videoRef.current;
+    const isTeraBox = movie.sourceType === "terabox" || !!movie.surl || !!getTeraBoxShareId(movie.url);
     let cancelled = false;
     let hls: import("hls.js").default | null = null;
     const onLoaded = () => {
@@ -77,7 +78,7 @@ export default function Home() {
     };
     const attachStream = async (streamUrl: string) => {
       if (cancelled) return;
-      if (/\\.m3u8(?:$|\\?)/i.test(streamUrl)) {
+      if (/\.m3u8(?:$|\?)/i.test(streamUrl)) {
         const { default: Hls } = await import("hls.js");
         if (cancelled) return;
         if (Hls.isSupported()) {
@@ -103,7 +104,7 @@ export default function Home() {
     };
     const onVideoError = () => {
       if (cancelled) return;
-      if (movie.sourceType === "terabox" || movie.surl) {
+      if (isTeraBox) {
         setNotice("The extracted stream could not be played. It may have expired or be blocked by the provider; reopen the title to extract a fresh link.");
       } else {
         const code = video.error?.code;
@@ -114,7 +115,7 @@ export default function Home() {
     video.addEventListener("loadedmetadata", onLoaded);
     video.addEventListener("error", onVideoError);
     async function startPlayback() {
-      if (movie.sourceType === "terabox" || movie.surl) {
+      if (isTeraBox) {
         setNotice("Extracting playable stream from TeraBox…");
         try {
           const response = await fetch("/api/terabox", {
