@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const REPO = "nospambot0/mixodj";
 const BRANCH = "main";
-type Movie = { id: string; title: string; url: string; sourceType?: "terabox"; surl?: string; year?: string; genre?: string; description?: string; poster?: string; addedAt?: string };
+type Movie = { id: string; title: string; url: string; sourceType?: "terabox" | "youtube"; surl?: string; year?: string; genre?: string; description?: string; poster?: string; addedAt?: string };
 
 function githubHeaders() {
   const token = process.env.GAWKROOM_GITHUB_TOKEN;
