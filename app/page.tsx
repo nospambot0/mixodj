@@ -251,8 +251,8 @@ export default function Home() {
       <h1 style={{ fontSize: 28, lineHeight: 1.2, margin: "0 0 10px" }}>Enter password</h1>
       <p style={{ color: "#a5a7b0", lineHeight: 1.6, fontSize: 14, marginBottom: 24 }}>Enter the site password to continue. Access stays open on this browser for 24 hours.</p>
       <form onSubmit={unlockSite}>
-        <label htmlFor="site-access-password" style={{ display: "block", fontSize: 13, marginBottom: 8, color: "#d5d5dc" }}>Password</label>
-        <input id="site-access-password" type="password" autoComplete="current-password" autoFocus value={sitePassword} onChange={e => setSitePassword(e.target.value)} placeholder="Enter site password" required style={{ width: "100%", boxSizing: "border-box", padding: "14px 15px", borderRadius: 10, border: "1px solid #3a3b45", background: "#090a0d", color: "#fff", fontSize: 16, outlineOffset: 3 }}/>
+        <label htmlFor="site-access-password" style={{ display: "block", fontSize: 13, marginBottom: 10, color: "#d5d5dc", letterSpacing: ".04em" }}>ENTER PASSWORD</label>
+        <input id="site-access-password" type="password" autoComplete="current-password" autoFocus value={sitePassword} onChange={e => setSitePassword(e.target.value)} placeholder="ENTER PASSWORD" required style={{ width: "100%", boxSizing: "border-box", padding: "15px 16px", borderRadius: 10, border: "1px solid #3a3b45", background: "#090a0d", color: "#fff", fontSize: 16, outlineOffset: 3, marginBottom: 4 }}/>
         {siteAccessError && <p role="alert" style={{ color: "#ff8b8b", fontSize: 13, margin: "10px 0 0" }}>{siteAccessError}</p>}
         <button type="submit" style={{ width: "100%", marginTop: 18, border: 0, borderRadius: 10, padding: "14px 16px", background: "#f4f4f5", color: "#111217", fontWeight: 750, fontSize: 15, cursor: "pointer" }}>Enter ReelRoom</button>
       </form>
