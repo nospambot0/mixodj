@@ -262,7 +262,7 @@ export default function Home() {
     if (!await publishMovies(updated)) return;
     setTitle(""); setUrl(""); setYear(""); setDescription(""); setPoster(""); setEditingId(null);
     setNotice("Title published for every visitor. Vercel will redeploy automatically.");
-    setAdminOpen(false); setManageOpen(false);
+    setAdminOpen(false); if (!isManageRoute) setManageOpen(false);
   }
   function editMovie(movie: Movie) {
     setEditingId(movie.id); setTitle(movie.title); setUrl(movie.url); setYear(movie.year || ""); setCategory(movie.genre || "Drama"); setDescription(movie.description || ""); setPoster(movie.poster || ""); setImdbUrl(""); setNotice(""); setAdminOpen(true);
