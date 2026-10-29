@@ -31,7 +31,7 @@ function isImageData(value: string) {
   const match = value.match(/^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/);
   if (!match) return null;
   const bytes = Buffer.from(match[2], "base64");
-  if (!bytes.length || bytes.length > 1024 * 1024) return null;
+  if (!bytes.length || bytes.length > 20 * 1024 * 1024) return null;
   const ext = match[1] === "jpeg" ? "jpg" : match[1];
   return { ext, base64: match[2] };
 }
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     for (const movie of movies) {
       if (typeof movie.poster === "string" && movie.poster.startsWith("data:image/")) {
         const image = isImageData(movie.poster);
-        if (!image) return NextResponse.json({ message: "Artwork must be a valid PNG, JPG, WEBP or GIF file no larger than 1 MB." }, { status: 400 });
+        if (!image) return NextResponse.json({ message: "Artwork must be a valid PNG, JPG, WEBP or GIF file no larger than 20 MB." }, { status: 400 });
         const path = `public/uploads/${movie.id}.${image.ext}`;
         const blob = await github("git/blobs", { method: "POST", body: JSON.stringify({ content: image.base64, encoding: "base64" }) });
         treeElements.push({ path, mode: "100644", type: "blob", sha: blob.sha });
