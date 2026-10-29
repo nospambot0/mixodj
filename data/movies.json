@@ -34,5 +34,16 @@
     "description": "",
     "poster": "/uploads/962affed-297e-48cb-b1bf-a57a28d9676c.jpg",
     "addedAt": "2026-10-28T15:23:45.661Z"
+  },
+  {
+    "id": "play4u-tt37180686",
+    "title": "Play4u",
+    "url": "https://play4u.org/tt37180686",
+    "sourceType": "embed",
+    "year": "",
+    "genre": "Other",
+    "description": "Embedded third-party player. If playback is blocked, open the original page.",
+    "poster": "",
+    "addedAt": "2026-10-29T21:39:57.432Z"
   }
 ]
