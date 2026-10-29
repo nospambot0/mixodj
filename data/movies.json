@@ -45,5 +45,16 @@
     "description": "Embedded third-party player.",
     "poster": "https://www.imdb.com/title/tt37180686/mediaviewer/rm3477206530/?ref_=tt_ov_i",
     "addedAt": "2026-10-29T21:39:57.432Z"
+  },
+  {
+    "id": "play4u-tt31969655",
+    "title": "The Paradise",
+    "url": "https://play4u.org/watch/tt31969655",
+    "sourceType": "embed",
+    "year": "2026",
+    "genre": "Action",
+    "description": "In 1980s Secunderabad, a marginalised tribe battles discrimination and fights for citizenship under an unexpected leader.",
+    "poster": "",
+    "addedAt": "2026-10-29T22:27:29.548Z"
   }
 ]
