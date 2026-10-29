@@ -38,7 +38,8 @@ function getEmbedUrl(movie: Movie) {
       return id ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}` : movie.url;
     }
     if (host === "youtube.com" || host === "www.youtube.com" || host === "m.youtube.com" || host === "youtube-nocookie.com" || host === "www.youtube-nocookie.com") {
-      const id = u.searchParams.get("v") || u.pathname.match(/^\\/(?:embed|shorts|live)\\/([^/?#]+)/i)?.[1];
+const pathParts = u.pathname.split("/").filter(Boolean);
+      const id = u.searchParams.get("v") || (["embed", "shorts", "live"].includes(pathParts[0]?.toLowerCase()) ? pathParts[1] : undefined);
       if (id) return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`;
     }
     return movie.url;
