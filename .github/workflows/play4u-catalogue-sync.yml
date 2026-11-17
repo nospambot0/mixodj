@@ -1,0 +1,45 @@
+name: Daily Play4u Catalogue Sync
+
+on:
+  schedule:
+    # 09:00 Asia/Bangkok (02:00 UTC), every day
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: play4u-catalogue-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out ReelRoom
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install scraper dependencies
+        run: python -m pip install --disable-pip-version-check requests beautifulsoup4
+
+      - name: Import new catalogue titles
+        run: python scripts/sync_play4u.py
+
+      - name: Commit catalogue changes
+        run: |
+          if git diff --quiet -- data/movies.json; then
+            echo "No new Play4u titles today."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/movies.json
+          git commit -m "chore: daily Play4u catalogue sync"
+          git push
