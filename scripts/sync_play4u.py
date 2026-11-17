@@ -33,9 +33,8 @@ def allowed_by_robots(session: requests.Session) -> RobotFileParser:
     parser = RobotFileParser()
     parser.set_url(robots_url)
     parser.parse(response.text.splitlines())
-    for path in ("/", "/watch/"):
-        if not parser.can_fetch(USER_AGENT, urljoin(BASE, path)):
-            raise RuntimeError(f"robots.txt disallows crawling {path}; stopping safely.")
+    if not parser.can_fetch(USER_AGENT, BASE):
+        raise RuntimeError("robots.txt disallows crawling the catalogue; stopping safely.")
     return parser
 
 def get_soup(session: requests.Session, url: str) -> BeautifulSoup:
@@ -48,9 +47,11 @@ def canonical_title_page(href: str) -> str | None:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.netloc.lower() not in {"play4u.org", "www.play4u.org"}:
         return None
-    if not re.search(r"/(?:watch/)?tt\d+/?$", parsed.path):
+    match = re.search(r"/(?:watch/|series/)?(tt\d+)/?$", parsed.path)
+    if not match:
         return None
-    return url.rstrip("/")
+    # Store the clean public title URL, never /watch/ or /series/ variants.
+    return urljoin(BASE, match.group(1))
 
 def meta(soup: BeautifulSoup, *keys: str) -> str:
     for key in keys:
