@@ -233,3 +233,11 @@ body{background:#080808;color:#f5f5f1}
  .catalogue-intro-mark span{font-size:6px;letter-spacing:1px}
 }
 @media(max-width:380px){.home-landing .secondary-cta{padding:11px 10px;font-size:10px}.home-landing h1{font-size:46px}.home-landing-foot{font-size:6px}}
+
+/* Keep the whole public discovery flow on the Netflix-red accent */
+:root{--lime:#E50914}
+.catalogue-section .movie-card:hover .poster{border-color:#E50914}
+.catalogue-section .genre-tab.selected{background:#E50914;border-color:#E50914;color:#fff}
+.catalogue-section .poster-play{background:#E50914;color:#fff}
+.searchbox:focus-within{border-color:#E50914}
+.upload-form input:focus,.upload-form textarea:focus,.upload-form select:focus{border-color:#E50914}
